@@ -4,8 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="13e7b692-1920-4781-96c6-6a72130c09a5" name="Changes" comment="Добавлен модуль для базы данных.">
-      <change afterPath="$PROJECT_DIR$/SQL_for_data_base" afterDir="false" />
+    <list default="true" id="13e7b692-1920-4781-96c6-6a72130c09a5" name="Changes" comment="Добавление функций создание таблиц и запись данных пользователя в базу данных.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/bot_program.py" beforeDir="false" afterPath="$PROJECT_DIR$/bot_program.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data_base.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_base.py" afterDir="false" />
@@ -23,6 +22,12 @@
     </option>
   </component>
   <component name="Git.Settings">
+    <option name="PUSH_TAGS">
+      <GitPushTagMode>
+        <option name="argument" value="--tags" />
+        <option name="title" value="All" />
+      </GitPushTagMode>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="ProjectColorInfo">{
@@ -119,7 +124,15 @@
       <option name="project" value="LOCAL" />
       <updated>1738858242622</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="Добавление функций создание таблиц и запись данных пользователя в базу данных.">
+      <option name="closed" value="true" />
+      <created>1739207831774</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1739207831774</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -136,6 +149,7 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Создание основы для будущего бота." />
     <MESSAGE value="Добавлен модуль для базы данных." />
-    <option name="LAST_COMMIT_MESSAGE" value="Добавлен модуль для базы данных." />
+    <MESSAGE value="Добавление функций создание таблиц и запись данных пользователя в базу данных." />
+    <option name="LAST_COMMIT_MESSAGE" value="Добавление функций создание таблиц и запись данных пользователя в базу данных." />
   </component>
 </project>

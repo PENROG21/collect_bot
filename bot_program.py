@@ -22,7 +22,7 @@ def send_welcome(message):
 
     markup = telebot.types.ReplyKeyboardMarkup(row_width=1)
     item1 = telebot.types.KeyboardButton("Создать таблицу")
-    item2 = telebot.types.KeyboardButton("Записаться")
+    item2 = telebot.types.KeyboardButton("Записаться в таблицу")
     markup.add(item1)
     markup.add(item2)
 
@@ -37,10 +37,20 @@ def handle_table_link(message):
         table_name, table_description = db.get_info_table(table_id)
 
         if table_name:
+            markup = telebot.types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
+            item1 = telebot.types.KeyboardButton("Отмена")
+            item2 = telebot.types.KeyboardButton("Записаться")
+            markup.add(item1, item2)
+            markup.add(item1)
+            markup.add(item2)
+
             response = f"Вы перешли по ссылке на таблицу с ID: {table_id}\n"
-            response += f"Название таблицы: {table_name}\n"
+            response += f"Название таблицы: {table_name or 'Нет названия'}\n"
             response += f"Описание таблицы: {table_description or 'Нет описания'}\n"
-            bot.reply_to(message, response)
+            bot.send_message(message.chat.id, response, reply_markup=markup)
+
+            bot.register_next_step_handler(message, lambda message:
+            records_table(message, table_id))
         else:
             bot.reply_to(message, f"Таблица с ID {table_id} не найдена.")
 
@@ -48,7 +58,20 @@ def handle_table_link(message):
         bot.reply_to(message, f"Произошла ошибка: {e}")
 
 
-@bot.message_handler(func=lambda message: message.text == "Записаться")
+def records_table(message, id_table):
+    try:
+        if message.text.strip() == "Записаться":
+            if db.records_table(id_table, id_user=message.from_user.id):
+                bot.send_message(message.chat.id, "Вы записались в таблицу")
+            else:
+                bot.send_message(message.chat.id, "Вы уже есть в таблице")
+        if message.text.strip() == "Отмена":
+            send_welcome(message)
+    except Exception as error:
+        print(error)
+
+
+@bot.message_handler(func=lambda message: message.text == "Записаться в таблицу")
 def handle_create_table(message):
     bot.send_message(message.chat.id, "Введите id таблицы куда хотите записаться:")
     bot.register_next_step_handler(message, lambda message: handle_table_link(message))

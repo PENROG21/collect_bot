@@ -38,7 +38,9 @@ class PostgresConnection:
 
     def get_info_table(self, id_table):
         try:
-            self.cursor.execute(f'SELECT name, discription FROM "table" WHERE id = {id_table}')
+            self.cursor.execute(
+                f'SELECT name, discription FROM "table" WHERE id = {id_table}'
+            )
             table_info = self.cursor.fetchone()
 
             if table_info:
@@ -60,9 +62,11 @@ class PostgresConnection:
         :param id_platform: Платформа
         """
         try:
-            self.cursor.execute("INSERT INTO users(id_user, user_name, username, platform, data, user_surname)"
+            self.cursor.execute(
+                "INSERT INTO users(id_user, user_name, username, platform, data, user_surname)"
                                 f" values ({user_id}, %s, %s, {id_platform}, now(), %s)",
-                                (user_name, username, user_surname))
+                                (user_name, username, user_surname)
+            )
             self.commit()
         except Exception as error:
             print("Ошибка при работе с методом records_user\n", error)
@@ -74,7 +78,9 @@ class PostgresConnection:
         :return: True если есть
         """
         try:
-            self.cursor.execute(f"SELECT * FROM users WHERE id_user = {user_id_platform}")
+            self.cursor.execute(
+                f"SELECT * FROM users WHERE id_user = {user_id_platform}"
+            )
             if self.cursor.fetchone():
                 return True
             else:
@@ -91,9 +97,11 @@ class PostgresConnection:
         :return:
         """
         try:
-            self.cursor.execute('INSERT INTO "table"(name, discription, owner, data_creat) VALUES '
-                                    f"(%s, %s, (SELECT id FROM users WHERE id_user = {id_owner}), NOW()) RETURNING id",
-                                (name, description))
+            self.cursor.execute(
+                'INSERT INTO "table"(name, discription, owner, data_creat) VALUES '
+                f"(%s, %s, (SELECT id FROM users WHERE id_user = {id_owner}), NOW()) RETURNING id",
+                                (name, description)
+            )
             self.commit()
 
             return self.cursor.fetchone()[0]
@@ -106,6 +114,27 @@ class PostgresConnection:
             self.cursor.close()
             self.connection.close()
             print("Соединение с PostgreSQL закрыто.")
+
+    def records_table(self, id_table: int, id_user: int) -> bool:
+        """
+        Пытается добавить запись в таблицу 'records'.  Возвращает True при успешном добавлении,
+        False, если запись уже существует (нарушение уникальности), и печатает сообщение об ошибке
+        в случае других исключений.
+        """
+        try:
+            self.cursor.execute(
+                f'insert into records(id_table, id_name, "data") '
+                f'values ({id_table}, (select id from users where id_user = {id_user} ), now())'
+            )
+            self.connection.commit()  # Важно: нужно зафиксировать изменения в базе данных
+            return True  # Успешно добавлено
+        except psycopg2.errors.UniqueViolation as e:
+            self.connection.rollback()  # Откатываем транзакцию при ошибке уникальности
+            return False  # Запись уже существует
+        except Exception as error:
+            self.connection.rollback()  # Откатываем транзакцию при любой другой ошибке
+            print("Ошибка при добавлении записи в таблицу 'records':\n", error)
+            return False  # Произошла другая ошибка
 
 
 if __name__ == "__main__":
