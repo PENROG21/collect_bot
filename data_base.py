@@ -13,6 +13,35 @@ class PostgresConnection:
         self.port = port
         self.connection = None
 
+    def __str__(self):
+        # Mask the password for security
+        return (f"PostgreSQLConnection(\n"
+                f"host='{self.host}', "
+                f"\ndatabase='{self.database}', "
+                f"\nuser='{self.user}', "
+                f"\nport={self.port})")
+
+    def __repr__(self):
+        """Возвращает формальное строковое представление объекта."""
+        return (
+            f"PostgresConnection(host={self.host!r}, "
+            f"database={self.database!r}, user={self.user!r}, "
+            f"port={self.port!r})"
+        )
+
+    def __del__(self):
+        """Закрывает соединение при удалении объекта."""
+        if self.connection:
+            self.close()
+
+    def __getattr__(self, name):
+        """Обрабатывает попытку доступа к несуществующему атрибуту."""
+        raise AttributeError(f"Атрибут '{name}' не найден")
+
+    def __setattr__(self, name, value):
+        """Обрабатывает попытку установки атрибута."""
+        super().__setattr__(name, value)
+
     def commit(self):
         """Сохранение изменений в базе данных."""
         try:
@@ -32,9 +61,17 @@ class PostgresConnection:
                 port=self.port
             )
             self.cursor = self.connection.cursor()
+
             print("Соединение с PostgreSQL установлено успешно.")
         except psycopg2.Error as e:
             print(f"Ошибка подключения: {e}")
+
+    def close(self):
+        """Закрытие подключения к PostgreSQL."""
+        if self.connection:
+            self.cursor.close()
+            self.connection.close()
+            print("Соединение с PostgreSQL закрыто.")
 
     def get_info_table(self, id_table):
         try:
@@ -81,10 +118,8 @@ class PostgresConnection:
             self.cursor.execute(
                 f"SELECT * FROM users WHERE id_user = {user_id_platform}"
             )
-            if self.cursor.fetchone():
-                return True
-            else:
-                return False
+            return bool(self.cursor.fetchone())
+
         except Exception as error:
             print("Ошибка при работе с методом exist_user\n", error)
 
@@ -108,12 +143,6 @@ class PostgresConnection:
         except Exception as error:
             print("Ошибка при работе с методом create_table\n", error)
 
-    def close(self):
-        """Закрытие подключения к PostgreSQL."""
-        if self.connection:
-            self.cursor.close()
-            self.connection.close()
-            print("Соединение с PostgreSQL закрыто.")
 
     def records_table(self, id_table: int, id_user: int) -> bool:
         """
@@ -136,6 +165,70 @@ class PostgresConnection:
             print("Ошибка при добавлении записи в таблицу 'records':\n", error)
             return False  # Произошла другая ошибка
 
+    def search_owen_table(self, id_owen: int) -> list:
+        """
+        Метод для поиска таблиц, которыми владеет пользователь.
+        :param id_owen: id пользователя
+        :return: id, название и описание таблиц. (если есть)
+        """
+        try:
+            self.cursor.execute(
+                'select id, "name", discription from "table" where "table"."owner" = '
+                f'(select id from users where id_user = {id_owen})'
+            )
+            return self.cursor.fetchall()  # Возвращаем все строки
+
+        except Exception as error:
+            print("Ошибка при работе с методом search_owen_table\n", error)
+
+    def exists_table(self, id_table) -> bool:
+        """
+        Метод дял проверки существования таблицы.
+        :param id_table: Id таблицы которое надо проверить
+        :return: True если есть и наоборот.
+        """
+        try:
+            # Используем параметризованный запрос для защиты от SQL-инъекций
+            self.cursor.execute(
+                f"SELECT EXISTS (SELECT 1 FROM records "
+                f"WHERE id_table = {id_table}) AS exists;"
+            )
+            result = self.cursor.fetchone()[0]  # Получаем первый элемент из результата (True или False)
+
+            return bool(result)  # Явно преобразуем в bool
+
+        except psycopg2.Error as error:
+            print("Ошибка при работе с методом exists_table в sql\n", error)
+
+        except Exception as error:
+            print("Ошибка при работе с методом exists_table\n", error)
+
+    def all_participants_table(self, id_table):
+        """
+        Метод дял проверки существования таблицы.
+        :id_table id_table: Id таблицы которое надо проверить
+        :return: True если есть и наоборот.
+        """
+        try:
+            # Используем параметризованный запрос для защиты от SQL-инъекций
+            self.cursor.execute(
+                "select users.user_name, users.user_surname, users.username from users "
+                "inner join records "
+                f"on records.id_table = {id_table}"
+            )
+            return self.cursor.fetchone()  # Получаем первый элемент из результата (True или False)
+
+        except psycopg2.Error as error:
+            print("Ошибка при работе с методом all_participants_table в sql\n", error)
+
+        except Exception as error:
+            print("Ошибка при работе с методом all_participants_table\n", error)
+
 
 if __name__ == "__main__":
-    pass
+    db = PostgresConnection(
+        database="telebot",
+        password="PENROG21"
+    )
+    db.connect()
+    print(db.all_participants_table(1))
