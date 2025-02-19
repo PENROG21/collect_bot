@@ -55,3 +55,9 @@ ON UPDATE NO ACTION ON DELETE NO ACTION;
 ALTER TABLE "records"
 ADD FOREIGN KEY("id_name") REFERENCES "users"("id")
 ON UPDATE NO ACTION ON DELETE NO ACTION;
+
+ALTER TABLE "table"
+ADD COLUMN show_participants BOOLEAN DEFAULT FALSE;
+-- Обновление существующих строк, установка значения FALSE
+UPDATE "table"
+SET show_participants = false ;
