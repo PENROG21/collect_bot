@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="13e7b692-1920-4781-96c6-6a72130c09a5" name="Changes" comment="Добавление функций создание таблиц и запись данных пользователя в базу данных.">
+    <list default="true" id="13e7b692-1920-4781-96c6-6a72130c09a5" name="Changes" comment="Добавление новых методов для класса.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/bot_program.py" beforeDir="false" afterPath="$PROJECT_DIR$/bot_program.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data_base.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_base.py" afterDir="false" />
@@ -41,15 +41,15 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Python.bot_program.executor": "Run",
-    "Python.data_base.executor": "Run",
-    "RunOnceActivity.OpenProjectViewOnStart": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "git-widget-placeholder": "main"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Python.bot_program.executor&quot;: &quot;Run&quot;,
+    &quot;Python.data_base.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;
   }
-}]]></component>
+}</component>
   <component name="RunManager" selected="Python.bot_program">
     <configuration name="bot_program" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="collect_bot" />
@@ -156,7 +156,15 @@
       <option name="project" value="LOCAL" />
       <updated>1739207831774</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="Добавление новых методов для класса.">
+      <option name="closed" value="true" />
+      <created>1739533744702</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1739533744702</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -174,6 +182,7 @@
     <MESSAGE value="Создание основы для будущего бота." />
     <MESSAGE value="Добавлен модуль для базы данных." />
     <MESSAGE value="Добавление функций создание таблиц и запись данных пользователя в базу данных." />
-    <option name="LAST_COMMIT_MESSAGE" value="Добавление функций создание таблиц и запись данных пользователя в базу данных." />
+    <MESSAGE value="Добавление новых методов для класса." />
+    <option name="LAST_COMMIT_MESSAGE" value="Добавление новых методов для класса." />
   </component>
 </project>

@@ -1,10 +1,12 @@
+import inspect
+
 import psycopg2
 
 
 class PostgresConnection:
     """Класс для работы с PostgreSQL."""
 
-    def __init__(self, database, password, host="localhost", user="postgres", port=5432):
+    def __init__(self, database, password, host="localhost", user="postgres", port=5432 ):
         """Инициализация подключения к PostgreSQL."""
         self.host = host
         self.database = database
@@ -89,6 +91,26 @@ class PostgresConnection:
             print("Ошибка при работе с методом get_info_table", error)
             return None, None
 
+    def name_table(self, id_table) -> str:
+        """
+        Метод, который возвращает название таблицы
+        :param id_table: Id таблицы
+        :return: Название таблицы. (str)
+        """
+        try:
+            self.cursor.execute(
+                f'select name from "table" where id = {id_table}'
+            )
+            return str(self.cursor.fetchone())
+
+        except psycopg2.Error as e:
+            print(f"Ошибка в name_table (SQL): {e}")
+            return 'None'
+
+        except Exception as e:
+            print(f"Ошибка в name_table: {e}")
+            return 'None'
+
     def records_user(self, user_id, user_name: str, user_surname: str, username: str, id_platform: int):
         """
         Метод для, добавление пользователя в базу данных.
@@ -142,7 +164,6 @@ class PostgresConnection:
             return self.cursor.fetchone()[0]
         except Exception as error:
             print("Ошибка при работе с методом create_table\n", error)
-
 
     def records_table(self, id_table: int, id_user: int) -> bool:
         """
@@ -203,9 +224,9 @@ class PostgresConnection:
         except Exception as error:
             print("Ошибка при работе с методом exists_table\n", error)
 
-    def all_participants_table(self, id_table):
+    def show_all_participants_table(self, id_table) -> list :
         """
-        Метод дял проверки существования таблицы.
+        Метод которая возвращаяет участников таблицы
         :id_table id_table: Id таблицы которое надо проверить
         :return: True если есть и наоборот.
         """
@@ -216,13 +237,77 @@ class PostgresConnection:
                 "inner join records "
                 f"on records.id_table = {id_table}"
             )
-            return self.cursor.fetchone()  # Получаем первый элемент из результата (True или False)
+            return [self.cursor.fetchone()]  # Получаем первый элемент из результата (True или False)
 
         except psycopg2.Error as error:
-            print("Ошибка при работе с методом all_participants_table в sql\n", error)
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name} в sql\n", error)
 
         except Exception as error:
-            print("Ошибка при работе с методом all_participants_table\n", error)
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
+
+    def check_record_exists(self, record_id, owner_id):
+        """
+        Быстро проверяет существование записи с заданным ID и owner.
+        Возвращает True, если запись существует, иначе False.
+        Использует параметризованный запрос для защиты от SQL-инъекций.
+        """
+        try:
+            self.cursor.execute(
+                'SELECT 1 FROM "table" WHERE id = %s AND owner = '
+                '(select id from users where "id_user" = %s) LIMIT 1',
+                (record_id, owner_id)
+            )
+            result = self.cursor.fetchone()
+            return bool(result)  # True, если запись найдена, иначе False
+
+        except psycopg2.Error as e:
+            print(f"Ошибка в check_record_exists (SQL): {e}")
+            return False  # Возвращаем False в случае ошибки
+
+        except Exception as e:
+            print(f"Ошибка в check_record_exists: {e}")
+            return False  # Возвращаем False в случае другой ошибки
+
+    def change_show_participants(self, id_table: int) -> bool:
+        """
+        Метод, который позволяет участникам таблицы просматривать запись в таблице.
+        :param id_table: ID таблицы
+        :return: True если все успешно прошло и наоборт.
+        """
+        try:
+            self.cursor.execute(f'''
+            UPDATE "table" SET show_participants = NOT show_participants where "id" = {id_table};
+            '''
+            )
+            self.commit()
+            return True
+
+        except psycopg2.Error as error:
+
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name} в sql\n", error)
+        except Exception as error:
+
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
+
+    def visibility(self, id_table) -> type[bool, str]:
+        """
+        Метод, который проверяет, могут - ли участник просматривать таблицу
+        :param id_table: id таблицы
+        :return: True если могут и наоборот.
+        """
+        try:
+            # Используем параметризованный запрос для защиты от SQL-инъекций
+            self.cursor.execute(
+                f'select show_participants from "table" where id = {id_table}'
+            )
+            show_participants = self.cursor.fetchone()[0]
+            return bool(show_participants)  # Получаем первый элемент из результата (True или False)
+
+        except psycopg2.Error as error:
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name} в sql\n", error)
+
+        except Exception as error:
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
 
 
 if __name__ == "__main__":
@@ -231,4 +316,4 @@ if __name__ == "__main__":
         password="PENROG21"
     )
     db.connect()
-    print(db.all_participants_table(1))
+    print(db.visibility(1))
