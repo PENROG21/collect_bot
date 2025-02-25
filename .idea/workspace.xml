@@ -4,7 +4,15 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
+<<<<<<< HEAD
     <list default="true" id="13e7b692-1920-4781-96c6-6a72130c09a5" name="Changes" comment="Добавление возможностей смотреть содержимое функции и изменения таблицы." />
+=======
+    <list default="true" id="13e7b692-1920-4781-96c6-6a72130c09a5" name="Changes" comment="Добавление новых методов для класса.">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/bot_program.py" beforeDir="false" afterPath="$PROJECT_DIR$/bot_program.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/data_base.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_base.py" afterDir="false" />
+    </list>
+>>>>>>> origin/main
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -160,6 +168,7 @@
       <option name="project" value="LOCAL" />
       <updated>1739533744702</updated>
     </task>
+<<<<<<< HEAD
     <task id="LOCAL-00004" summary="Добавление возможностей смотреть содержимое функции и изменения таблицы.">
       <option name="closed" value="true" />
       <created>1740498411448</created>
@@ -169,6 +178,9 @@
       <updated>1740498411449</updated>
     </task>
     <option name="localTasksCounter" value="5" />
+=======
+    <option name="localTasksCounter" value="4" />
+>>>>>>> origin/main
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -187,8 +199,12 @@
     <MESSAGE value="Добавлен модуль для базы данных." />
     <MESSAGE value="Добавление функций создание таблиц и запись данных пользователя в базу данных." />
     <MESSAGE value="Добавление новых методов для класса." />
+<<<<<<< HEAD
     <MESSAGE value="Добавление возможности просматривать свои таблицы и где записан." />
     <MESSAGE value="Добавление возможностей смотреть содержимое функции и изменения таблицы." />
     <option name="LAST_COMMIT_MESSAGE" value="Добавление возможностей смотреть содержимое функции и изменения таблицы." />
+=======
+    <option name="LAST_COMMIT_MESSAGE" value="Добавление новых методов для класса." />
+>>>>>>> origin/main
   </component>
 </project>

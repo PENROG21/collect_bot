@@ -1,12 +1,17 @@
+<<<<<<< HEAD
 from typing import List, Optional, Tuple, Any
 import inspect
+=======
+import inspect
+
+>>>>>>> origin/main
 import psycopg2
 
 
 class PostgresConnection:
     """Класс для работы с PostgreSQL."""
 
-    def __init__(self, database, password, host="localhost", user="postgres", port=5432):
+    def __init__(self, database, password, host="localhost", user="postgres", port=5432 ):
         """Инициализация подключения к PostgreSQL."""
         self.host = host
         self.database = database
@@ -241,7 +246,11 @@ class PostgresConnection:
 
     def show_all_participants_table(self, id_table) -> list :
         """
+<<<<<<< HEAD
         Метод который возврощаяет участников таблиц
+=======
+        Метод которая возвращаяет участников таблицы
+>>>>>>> origin/main
         :id_table id_table: Id таблицы которое надо проверить
         :return: True если есть и наоборот.
         """
@@ -304,6 +313,7 @@ class PostgresConnection:
 
             print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
 
+<<<<<<< HEAD
     def get_table_info_for_user(self, id_table: int) -> Optional[List[int]]:
         """
         Метод, который возвращает id таблиц где пользователь принимает участие.
@@ -325,6 +335,8 @@ class PostgresConnection:
 
             print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
 
+=======
+>>>>>>> origin/main
     def visibility(self, id_table) -> type[bool, str]:
         """
         Метод, который проверяет, могут - ли участник просматривать таблицу
@@ -352,4 +364,8 @@ if __name__ == "__main__":
             password="PENROG21"
     )
     db.connect()
+<<<<<<< HEAD
     db.exist_user('3')
+=======
+    print(db.visibility(1))
+>>>>>>> origin/main

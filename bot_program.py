@@ -72,7 +72,6 @@ def print_table(id_tables: list[int]):
                                f'Название {name}\n Описание '
                                f'{description}\n')
             return '\n'.join(results)  # Возвращаем все строки
-
     except Exception as e:
         print(e)
 
