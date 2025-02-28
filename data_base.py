@@ -1,10 +1,6 @@
-<<<<<<< HEAD
-from typing import List, Optional, Tuple, Any
-import inspect
-=======
+from typing import List, Optional, Union
 import inspect
 
->>>>>>> origin/main
 import psycopg2
 
 
@@ -246,11 +242,8 @@ class PostgresConnection:
 
     def show_all_participants_table(self, id_table) -> list :
         """
-<<<<<<< HEAD
-        Метод который возврощаяет участников таблиц
-=======
-        Метод которая возвращаяет участников таблицы
->>>>>>> origin/main
+        Метод, который возврощаяет участников таблиц
+        Метод, которая возвращаяет участников таблицы
         :id_table id_table: Id таблицы которое надо проверить
         :return: True если есть и наоборот.
         """
@@ -268,6 +261,34 @@ class PostgresConnection:
 
         except Exception as error:
             print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
+
+    def check_user_in_table(self, id_table: int, id_user: int) -> bool:
+        """
+        Проверяет, записан ли пользователь с указанным ID в таблицу с указанным ID.
+
+        Args:
+            table_id: ID таблицы.
+            user_id: ID пользователя.
+
+        Returns:
+            True, если пользователь записан в таблицу, иначе False.  Возвращает False при любой ошибке.
+        """
+        try:
+            # Используем параметризованный запрос для защиты от SQL-инъекций
+            self.cursor.execute("select id from records r where id_table = %s and id_name "
+                                "= get_id_user(%s)", (id_table, id_user)
+            )
+            result = self.cursor.fetchone()[0]  # Получаем первый элемент из результата (True или False)
+
+            return bool(result)  # Явно преобразуем в bool
+
+        except psycopg2.Error as error:
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name} в sql\n", error)
+            return False
+
+        except Exception as error:
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
+            return False
 
     def check_record_exists(self, record_id, owner_id):
         """
@@ -313,7 +334,6 @@ class PostgresConnection:
 
             print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
 
-<<<<<<< HEAD
     def get_table_info_for_user(self, id_table: int) -> Optional[List[int]]:
         """
         Метод, который возвращает id таблиц где пользователь принимает участие.
@@ -335,8 +355,6 @@ class PostgresConnection:
 
             print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
 
-=======
->>>>>>> origin/main
     def visibility(self, id_table) -> type[bool, str]:
         """
         Метод, который проверяет, могут - ли участник просматривать таблицу
@@ -364,8 +382,5 @@ if __name__ == "__main__":
             password="PENROG21"
     )
     db.connect()
-<<<<<<< HEAD
     db.exist_user('3')
-=======
     print(db.visibility(1))
->>>>>>> origin/main

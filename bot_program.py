@@ -1,5 +1,4 @@
-from typing import List
-
+from typing import List, Union
 import telebot
 from telebot import types
 
@@ -11,7 +10,7 @@ bot = telebot.TeleBot("5929718382:AAFZXsV2YldpqY7KCW4bbwyorLwfWHZiIo0")
 
 db = PostgresConnection(
     database="telebot",
-        password="PENROG21"
+    password="PENROG21"
 )
 db.connect()
 user_data = {}
@@ -44,7 +43,7 @@ def view_my_tables_handler(message):
     # Здесь будет логика отображения таблиц, созданных пользователем
     owen_table = db.search_owen_table(message.from_user.id)
     if not owen_table:
-        bot.send_message(message.chat.id, "У вас не таблиц")
+        bot.send_message(message.chat.id, "У вас нет таблиц")
     else:
         bot.send_message(message.chat.id, print_table(owen_table))
 
@@ -53,14 +52,17 @@ def view_my_tables_handler(message):
 def view_my_registrations_handler(message):
     owen_participants = db.get_table_info_for_user(message.from_user.id)
     if not owen_participants:
-        bot.send_message(message.chat.id, "У вас не таблиц")
+        bot.send_message(message.chat.id, "Вы пока нигде не записаны.")
     else:
         bot.send_message(message.chat.id, print_table(owen_participants))
 
 
-def print_table(id_tables: list[int]):
+def print_table(id_tables: Union[int, List[int]]):
     try:
+            if isinstance(id_tables, int):
+                id_tables = [id_tables]
             results = []
+            print(id_tables, ';sf')
             for table_id in id_tables:
                 # Из id таблиц получаем информацию об них
                 info_table = db.get_info_table(table_id)
@@ -69,7 +71,7 @@ def print_table(id_tables: list[int]):
                 description = info_table[1]
 
                 results.append(f'id: /{table_id}\n'
-                               f'Название {name}\n Описание '
+                               f'Название Таблицы {name}\nОписание '
                                f'{description}\n')
             return '\n'.join(results)  # Возвращаем все строки
     except Exception as e:
@@ -79,25 +81,35 @@ def print_table(id_tables: list[int]):
 @bot.message_handler(func=lambda message: message.text.startswith('/') and message.text[1:].isdigit())
 def handle_table_link(message):
     try:
-        table_id = message.text[1:]
+        table_id = int(message.text[1:])
         print(table_id)
         table_name, table_description = db.get_info_table(table_id)
 
         if table_name:
-            markup = telebot.types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
-            item1 = telebot.types.KeyboardButton("Отмена")
-            item2 = telebot.types.KeyboardButton("Записаться")
-            markup.add(item1, item2)
-            markup.add(item1)
-            markup.add(item2)
+            markup = types.InlineKeyboardMarkup()
+            messeage_send = []
+            item1 = types.InlineKeyboardButton("Отписаться", callback_data="setting_3")
+            item2 = types.InlineKeyboardButton("Записаться", callback_data="setting_3")
 
-            response = f"Вы перешли по ссылке на таблицу с ID: {table_id}\n"
-            response += f"Название таблицы: {table_name or 'Нет названия'}\n"
-            response += f"Описание таблицы: {table_description or 'Нет описания'}\n"
-            bot.send_message(message.chat.id, print_table(table_id), reply_markup=markup)
+            if db.check_user_in_table(table_id, message.from_user.id):
+                markup.add(item1)
+                print(db.check_user_in_table(table_id, message.from_user.id))
 
-            bot.register_next_step_handler(message, lambda message:
-            records_table(message, table_id))
+                messeage_send.append('Вы записаны в таблицу. Вы можете отписаться')
+            else:
+                markup.add(item2)
+                print(db.check_user_in_table(table_id, message.from_user.id))
+
+                messeage_send.append('Вы не записаны в таблицу.')
+
+            messeage_send.append(print_table(table_id))
+
+            # Изменяем сообщение, заменяя кнопку "Настройки" на 6 кнопок
+            print(1111111)
+            print(markup)
+            bot.send_message(message.chat.id, '\n'.join(messeage_send), reply_markup=markup)
+
+            bot.register_next_step_handler(message, lambda message: records_table(message, table_id))
         else:
             bot.reply_to(message, f"Таблица с ID {table_id} не найдена.")
 
@@ -281,10 +293,7 @@ def handle_table_description(message):
         user_data[message.chat.id]["id_table"] = id_table
 
         # Выводим информацию об таблице
-        bot.send_message(message.chat.id, f"Таблица создана!"
-                                          f"\n ID таблицы {id_table}"
-                                          f"\nНазвание: {table_name}"
-                                          f"\nОписание: {table_description}", reply_markup=markup)
+        bot.send_message(message.chat.id, f"Таблица создана! \n{print_table(int(id_table))}", reply_markup=markup)
 
     except Exception as error:
         print("Ошибка при работе с функцией handle_table_description\n", error)
