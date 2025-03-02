@@ -62,7 +62,6 @@ def print_table(id_tables: Union[int, List[int]]):
             if isinstance(id_tables, int):
                 id_tables = [id_tables]
             results = []
-            print(id_tables, ';sf')
             for table_id in id_tables:
                 # Из id таблиц получаем информацию об них
                 info_table = db.get_info_table(table_id)
@@ -88,28 +87,24 @@ def handle_table_link(message):
         if table_name:
             markup = types.InlineKeyboardMarkup()
             messeage_send = []
-            item1 = types.InlineKeyboardButton("Отписаться", callback_data="setting_3")
-            item2 = types.InlineKeyboardButton("Записаться", callback_data="setting_3")
+            print(message.from_user.id, "222")
 
             if db.check_user_in_table(table_id, message.from_user.id):
-                markup.add(item1)
-                print(db.check_user_in_table(table_id, message.from_user.id))
+                item1 = types.InlineKeyboardButton("Отписаться", callback_data=f"unsubscribe:{table_id}")
 
                 messeage_send.append('Вы записаны в таблицу. Вы можете отписаться')
             else:
-                markup.add(item2)
-                print(db.check_user_in_table(table_id, message.from_user.id))
+                item1 = types.InlineKeyboardButton("Записаться", callback_data=f"subscribe:{table_id}")
 
                 messeage_send.append('Вы не записаны в таблицу.')
 
+            markup.add(item1)  # Добавляем кнопку в разметку
+
             messeage_send.append(print_table(table_id))
 
-            # Изменяем сообщение, заменяя кнопку "Настройки" на 6 кнопок
-            print(1111111)
-            print(markup)
+            # Отправляем сообщение с кнопками
             bot.send_message(message.chat.id, '\n'.join(messeage_send), reply_markup=markup)
 
-            bot.register_next_step_handler(message, lambda message: records_table(message, table_id))
         else:
             bot.reply_to(message, f"Таблица с ID {table_id} не найдена.")
 
@@ -117,17 +112,57 @@ def handle_table_link(message):
         bot.reply_to(message, f"Произошла ошибка: {e}")
 
 
-def records_table(message, id_table):
+@bot.callback_query_handler(func=lambda call: True)
+def callback_inline(call):
+    """Обработчик нажатий на инлайн-кнопки"""
     try:
-        if message.text.strip() == "Записаться":
-            if db.records_table(id_table, id_user=message.from_user.id):
-                bot.send_message(message.chat.id, "Вы записались в таблицу")
+        if call.message: # Проверяем, что сообщение существует
+            data = call.data.split(":")
+            action = data[0]
+            table_id = int(data[1])
+            print(table_id)
+            print(call.from_user.id)
+
+            if action == "unsubscribe":
+                # Отписываем пользователя от таблицы
+                if db.delete_user_from_table(table_id, call.from_user.id):
+                    bot.send_message(call.message.chat.id, f"Вы успешно отписались от таблицы с ID {table_id}")
+                else:
+                    bot.send_message(call.message.chat.id, f"Не удалось отписаться от таблицы с ID {table_id}")
+
+                # Обновляем сообщение, чтобы отобразить кнопку "Записаться"
+                markup = types.InlineKeyboardMarkup()
+                item1 = types.InlineKeyboardButton("Записаться", callback_data=f"subscribe:{table_id}")
+                markup.add(item1)
+                bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=call.message.text, reply_markup=markup)
+                #или
+                #bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup)
+                bot.answer_callback_query(call.id, "Отписано!")
+
+            elif action == "subscribe":
+                # Записываем пользователя в таблицу
+                if db.records_table(table_id, call.from_user.id):
+                    bot.send_message(call.message.chat.id, f"Вы успешно записались в таблицу с ID {table_id}")
+                else:
+                    bot.send_message(call.message.chat.id, f"Вы уже записаны в таблицу с ID {table_id}")
+                # Обновляем сообщение, чтобы отобразить кнопку "Отписаться"
+                markup = types.InlineKeyboardMarkup()
+                item1 = types.InlineKeyboardButton("Отписаться", callback_data=f"unsubscribe:{table_id}")
+                markup.add(item1)
+                bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=call.message.text, reply_markup=markup)
+                #или
+                #bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup)
+
+                bot.answer_callback_query(call.id, "Записано!")
+
             else:
-                bot.send_message(message.chat.id, "Вы уже есть в таблице")
-        if message.text.strip() == "Отмена":
-            send_welcome(message)
-    except Exception as error:
-        print(error)
+                bot.send_message(call.message.chat.id, "Неизвестное действие.")
+
+    except Exception as e:
+        print(f"Ошибка в callback_inline: {e}")
+        bot.send_message(call.message.chat.id, f"Произошла ошибка: {e}")
+
+# Удалите функцию records_table, она больше не нужна
 
 
 # Обработчик команды /help

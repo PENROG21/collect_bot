@@ -278,9 +278,8 @@ class PostgresConnection:
             self.cursor.execute("select id from records r where id_table = %s and id_name "
                                 "= get_id_user(%s)", (id_table, id_user)
             )
-            result = self.cursor.fetchone()[0]  # Получаем первый элемент из результата (True или False)
-
-            return bool(result)  # Явно преобразуем в bool
+            # Получаем первый элемент из результата (True или False)
+            return bool(self.cursor.fetchone()[0])  # Явно преобразуем в bool
 
         except psycopg2.Error as error:
             print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name} в sql\n", error)
@@ -302,8 +301,7 @@ class PostgresConnection:
                 '(select id from users where "id_user" = %s) LIMIT 1',
                 (record_id, owner_id)
             )
-            result = self.cursor.fetchone()
-            return bool(result)  # True, если запись найдена, иначе False
+            return bool(self.cursor.fetchone())  # True, если запись найдена, иначе False
 
         except psycopg2.Error as e:
             print(f"Ошибка в check_record_exists (SQL): {e}")
@@ -374,6 +372,24 @@ class PostgresConnection:
 
         except Exception as error:
             print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
+
+    def delete_user_from_table(self, id_table, id_users) -> bool:
+        try:
+            # Используем параметризованный запрос для защиты от SQL-инъекций
+            self.cursor.execute(
+                'delete from records where id_name = get_id_user(%s) and id_table = %s',
+                (id_users, id_table)
+            )
+            self.connection.commit()
+            return True  # Получаем первый элемент из результата (True или False)
+
+        except psycopg2.Error as error:
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name} в sql\n", error)
+            return False
+
+        except Exception as error:
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
+            return False
 
 
 if __name__ == "__main__":
