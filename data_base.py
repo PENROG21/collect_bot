@@ -279,7 +279,12 @@ class PostgresConnection:
                                 "= get_id_user(%s)", (id_table, id_user)
             )
             # Получаем первый элемент из результата (True или False)
-            return bool(self.cursor.fetchone()[0])  # Явно преобразуем в bool
+            result = self.cursor.fetchone()
+            # Если результат None, возвращаем False
+            if result is None:
+                return False
+            # Преобразуем первый элемент результата в bool
+            return bool(result[0])
 
         except psycopg2.Error as error:
             print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name} в sql\n", error)
@@ -289,17 +294,16 @@ class PostgresConnection:
             print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
             return False
 
-    def check_record_exists(self, record_id, owner_id):
+    def is_user_owner(self, table_id, owner_id):
         """
-        Быстро проверяет существование записи с заданным ID и owner.
+        Быстро проверяет что пользователь, владелrец таблицы
         Возвращает True, если запись существует, иначе False.
-        Использует параметризованный запрос для защиты от SQL-инъекций.
         """
         try:
             self.cursor.execute(
                 'SELECT 1 FROM "table" WHERE id = %s AND owner = '
                 '(select id from users where "id_user" = %s) LIMIT 1',
-                (record_id, owner_id)
+                (table_id, owner_id)
             )
             return bool(self.cursor.fetchone())  # True, если запись найдена, иначе False
 
@@ -343,8 +347,9 @@ class PostgresConnection:
                                 '"table".id = records.id_table inner join users on users.id = records.id_name ' 
                                 f'where users.id = (select id from users u2 where id_user = {id_table})'
                                 )
+            rows = self.cursor.fetchall()
 
-            return list(self.cursor.fetchone())
+            return [row[0] for row in rows] if rows else []
 
         except psycopg2.Error as error:
 

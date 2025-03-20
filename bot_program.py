@@ -29,8 +29,7 @@ def send_welcome(message):
 
     # Проверяем есть ли пользователь в общей базе данных.
     if not db.exist_user(message.from_user.id):
-        markup.add(item1)
-        markup.add(item2)
+        markup.add(item1, item2)
     else:
         markup.add(item1, item2)
         markup.add(item3, item4)
@@ -80,31 +79,32 @@ def print_table(id_tables: Union[int, List[int]]):
 @bot.message_handler(func=lambda message: message.text.startswith('/') and message.text[1:].isdigit())
 def handle_table_link(message):
     try:
-        table_id = int(message.text[1:])
+        table_id = int(message.text[1:])  # Извлекаем ID таблицы
         print(table_id)
-        table_name, table_description = db.get_info_table(table_id)
+        table_name, table_description = db.get_info_table(table_id)  # Получаем информацию о таблице
 
-        if table_name:
+        if table_name:  # Если таблица существует
             markup = types.InlineKeyboardMarkup()
             messeage_send = []
-            print(message.from_user.id, "222")
 
+            # Проверяем, записан ли пользователь в таблицу
             if db.check_user_in_table(table_id, message.from_user.id):
                 item1 = types.InlineKeyboardButton("Отписаться", callback_data=f"unsubscribe:{table_id}")
-
-                messeage_send.append('Вы записаны в таблицу. Вы можете отписаться')
+                messeage_send.append('Вы записаны в таблицу. Вы можете отписаться.')
             else:
                 item1 = types.InlineKeyboardButton("Записаться", callback_data=f"subscribe:{table_id}")
-
                 messeage_send.append('Вы не записаны в таблицу.')
 
-            markup.add(item1)  # Добавляем кнопку в разметку
+            # Проверяем, является ли пользователь владельцем таблицы
+            if db.is_user_owner(table_id, message.from_user.id):
+                settings_button = types.InlineKeyboardButton("Настройки", callback_data=f"show_settings:{table_id}")
+                markup.add(settings_button)
 
-            messeage_send.append(print_table(table_id))
+            markup.add(item1)  # Добавляем кнопку "Записаться" или "Отписаться"
+            messeage_send.append(print_table(table_id))  # Добавляем информацию о таблице
 
             # Отправляем сообщение с кнопками
             bot.send_message(message.chat.id, '\n'.join(messeage_send), reply_markup=markup)
-
         else:
             bot.reply_to(message, f"Таблица с ID {table_id} не найдена.")
 
@@ -116,14 +116,19 @@ def handle_table_link(message):
 def callback_inline(call):
     """Обработчик нажатий на инлайн-кнопки"""
     try:
-        if call.message: # Проверяем, что сообщение существует
+        if call.message:  # Проверяем, что сообщение существует
             data = call.data.split(":")
             action = data[0]
-            table_id = int(data[1])
-            print(table_id)
-            print(call.from_user.id)
 
-            if action == "unsubscribe":
+            if action == "show_settings":
+                show_settings(call)  # Вызов
+
+            elif action == "unsubscribe":
+                try:
+                    table_id = int(data[1])
+                except (IndexError, ValueError):
+                    bot.send_message(call.message.chat.id, "Некорректный ID таблицы (отписка).")
+                    return
                 # Отписываем пользователя от таблицы
                 if db.delete_user_from_table(table_id, call.from_user.id):
                     bot.send_message(call.message.chat.id, f"Вы успешно отписались от таблицы с ID {table_id}")
@@ -134,12 +139,16 @@ def callback_inline(call):
                 markup = types.InlineKeyboardMarkup()
                 item1 = types.InlineKeyboardButton("Записаться", callback_data=f"subscribe:{table_id}")
                 markup.add(item1)
-                bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=call.message.text, reply_markup=markup)
-                #или
-                #bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup)
+                bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id,
+                                      text=call.message.text, reply_markup=markup)
                 bot.answer_callback_query(call.id, "Отписано!")
 
             elif action == "subscribe":
+                try:
+                    table_id = int(data[1])
+                except (IndexError, ValueError):
+                    bot.send_message(call.message.chat.id, "Некорректный ID таблицы (запись).")
+                    return
                 # Записываем пользователя в таблицу
                 if db.records_table(table_id, call.from_user.id):
                     bot.send_message(call.message.chat.id, f"Вы успешно записались в таблицу с ID {table_id}")
@@ -149,14 +158,16 @@ def callback_inline(call):
                 markup = types.InlineKeyboardMarkup()
                 item1 = types.InlineKeyboardButton("Отписаться", callback_data=f"unsubscribe:{table_id}")
                 markup.add(item1)
-                bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=call.message.text, reply_markup=markup)
-                #или
-                #bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup)
+                bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id,
+                                      text=call.message.text, reply_markup=markup)
 
                 bot.answer_callback_query(call.id, "Записано!")
 
-            else:
-                bot.send_message(call.message.chat.id, "Неизвестное действие.")
+            elif action.startswith("setting_"):
+                handle_setting(call)  # Вызов обработчика настроек
+
+            elif action == "back_to_table":
+                back_to_table(call)  # Вызов обработчика кнопки "Назад"
 
     except Exception as e:
         print(f"Ошибка в callback_inline: {e}")
@@ -260,7 +271,7 @@ def show_participants(message):
     try:
         try:
             table_id = int(str(message.text)[6:])  # [6:] вместо [5:], т.к. /show
-            print(table_id)
+            print(table_id, 'DF')
         except (ValueError, IndexError):
             bot.reply_to(message, "Неверный формат команды. Используйте /show <id_таблицы>")
             return
@@ -272,7 +283,7 @@ def show_participants(message):
             if not db.exists_table(table_id):
                 bot.reply_to(message, "Нет такой таблицы")
             else:
-                if not db.check_record_exists(table_id, user_id):
+                if not db.is_user_owner(table_id, user_id):
                     bot.reply_to(message, "Вы не владелец.")
                 else:
                     if not db.visibility(table_id):
@@ -334,63 +345,124 @@ def handle_table_description(message):
         print("Ошибка при работе с функцией handle_table_description\n", error)
 
 
-@bot.callback_query_handler(func=lambda call: call.data == "show_settings")
+@bot.callback_query_handler(func=lambda call: call.data.startswith("show_settings"))
 def show_settings(call):
     try:
+        print("Обработчик show_settings вызван")
         chat_id = call.message.chat.id
+        data = call.data.split(":")
+        if len(data) > 1:
+            try:
+                table_id = int(data[1])  # Извлекаем ID таблицы
+                print(f"Получен table_id: {table_id}")
+            except ValueError:
+                bot.send_message(chat_id, "Некорректный ID таблицы.")
+                return
+        else:
+            bot.send_message(chat_id, "Не удалось получить ID таблицы.")
+            return
 
-        id_table = user_data[chat_id]["id_table"]
-        print(id_table)
-        # Создаем 6 кнопок настроек
+        # Создаем кнопки настроек
         markup = types.InlineKeyboardMarkup()
-        button1 = types.InlineKeyboardButton("Уведомления ❌", callback_data="setting_1")
-        button2 = types.InlineKeyboardButton("Visibility", callback_data=f"setting_2_{id_table}")
-        button3 = types.InlineKeyboardButton("Настройка 3", callback_data="setting_3")
+        button1 = types.InlineKeyboardButton("Уведомления ❌", callback_data=f"setting_1_{table_id}")
+        button2 = types.InlineKeyboardButton("Visibility", callback_data=f"setting_2_{table_id}")
+        button3 = types.InlineKeyboardButton("Назад", callback_data=f"back_to_table:{table_id}")
         markup.add(button1, button2)
         markup.add(button3)
 
-        # Изменяем сообщение, заменяя кнопку "Настройки" на 6 кнопок
-        bot.edit_message_text(chat_id=call.message.chat.id,
+        # Обновляем сообщение
+        bot.edit_message_text(chat_id=chat_id,
                               message_id=call.message.message_id,
-                              text="Выберите настройку\nVisibility  - Участники могу смотреть содержимое таблицы.:",
+                              text="Выберите настройку\nVisibility - Участники могут смотреть содержимое таблицы.",
                               reply_markup=markup)
+        print("Сообщение обновлено в show_settings")
     except Exception as error:
-        print(error)
-        print("Ошибка при работе с функцией show_settings\n", error)
+        print(f"Ошибка в show_settings: {error}")
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("setting_"))
 def handle_setting(call):
     try:
-        setting_number = int(call.data.split("_")[1])  # Извлекаем номер настройки
-        data_for_setting_number = call.data.split("_")[2]  # Получаем данные для работы
+        print("Обработчик handle_setting вызван")
+        data = call.data.split("_")
+        if len(data) < 3:
+            bot.answer_callback_query(call.id, "Некорректный формат callback_data")
+            return
 
-        # Получаем название таблицы.
-        name_table = db.name_table(data_for_setting_number)
+        setting_number = int(data[1])  # Номер настройки
+        table_id = data[2]  # ID таблицы
+
+        if not table_id.isdigit():
+            bot.answer_callback_query(call.id, "Некорректный ID таблицы.")
+            return
+
+        table_id = int(table_id)
+        name_table = db.name_table(table_id)  # Получаем название таблицы
+        print(f"Получено название таблицы: {name_table}")
+
         match setting_number:
             case 1:
-                bot.answer_callback_query(call.id, "Вы теперь будете получать уведомление об том, что кто - то "
-                                                   f"записался в таблицу {name_table}")
+                message = f"Вы теперь будете получать уведомления о таблице {name_table}."
             case 2:
-                # Меняем базу данных
-                if not db.change_show_participants(data_for_setting_number):
-                    bot.send_message(call.id, "Ошибка")
+                if db.change_show_participants(table_id):
+                    visibility_status = "могут" if db.visibility(table_id) else "не могут"
+                    message = f"Теперь участники таблицы {name_table} {visibility_status} смотреть содержимое."
                 else:
-                    if db.visibility(id_table=data_for_setting_number):
-                        bot.answer_callback_query(call.id, f"Теперь участники таблицы "
-                                                           f"{name_table} "
-                                                           f"могу смотреть содержимое")
-                    else:
-                        bot.answer_callback_query(call.id, f"Теперь участники таблицы "
-                                                           f"{name_table} "
-                                                           f"не смогут смотреть содержимое")
+                    message = "Ошибка при изменении видимости."
             case _:
-                bot.answer_callback_query(call.id, f"Ошибка")
-            # Отображаем уведомление вверху
-        bot.answer_callback_query(call.id, f"Вы выбрали настройку {setting_number}")
+                message = "Неизвестная настройка."
+
+        # Обновляем текст сообщения
+        updated_message = f"{message}"
+
+        # Создаем кнопку "Назад"
+        markup = types.InlineKeyboardMarkup()
+        back_button = types.InlineKeyboardButton("Назад", callback_data=f"back_to_table:{table_id}")
+        markup.add(back_button)
+
+        # Обновляем сообщение
+        bot.edit_message_text(chat_id=call.message.chat.id,
+                              message_id=call.message.message_id,
+                              text=updated_message,
+                              reply_markup=markup)
+        print("Сообщение обновлено в handle_setting")
+
     except Exception as error:
-        print(error)
-        print("Ошибка при работе с функцией show_settings\n", error)
+        print(f"Ошибка в handle_setting: {error}")
+        bot.answer_callback_query(call.id, "Произошла ошибка.")
+
+def create_main_menu_markup(table_id):
+    markup = types.InlineKeyboardMarkup()
+    item1 = types.InlineKeyboardButton("Записаться", callback_data=f"subscribe:{table_id}")
+    item2 = types.InlineKeyboardButton("Отписаться", callback_data=f"unsubscribe:{table_id}")
+    settings_button = types.InlineKeyboardButton("Настройки", callback_data=f"show_settings:{table_id}")
+    markup.add(item1, item2)
+    markup.add(settings_button)
+    return markup
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("back_to_table"))
+def back_to_table(call):
+    try:
+        print("Обработчик back_to_table вызван")
+        data = call.data.split(":")
+        if len(data) > 1:
+            table_id = int(data[1])  # Извлекаем ID таблицы
+            print(f"Получен table_id: {table_id}")
+        else:
+            bot.answer_callback_query(call.id, "Некорректный ID таблицы.")
+            return
+
+        # Возвращаем пользователя к исходному сообщению с кнопками "Записаться/Отписаться"
+        # Создаем новое сообщение с информацией о таблице
+        bot.edit_message_text(chat_id=call.message.chat.id,
+                              message_id=call.message.message_id,
+                              text=f"Таблица с ID {table_id}",
+                              reply_markup=create_main_menu_markup(table_id))
+        print("Сообщение обновлено в back_to_table")
+
+    except Exception as error:
+        print(f"Ошибка в back_to_table: {error}")
+        bot.answer_callback_query(call.id, "Произошла ошибка.")
 
 
 # Обработчик всех сообщений, начинающихся с "/" и не соответствующих известным командам.
