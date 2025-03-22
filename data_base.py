@@ -89,7 +89,7 @@ class PostgresConnection:
                 return None, None
 
         except Exception as error:
-            print("Ошибка при работе с методом get_info_table", error)
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
             return None, None
 
     def name_table(self, id_table) -> str:
@@ -99,17 +99,24 @@ class PostgresConnection:
         :return: Название таблицы. (str)
         """
         try:
+            # Используем параметризованный запрос для защиты от SQL-инъекций
             self.cursor.execute(
-                f'select name from "table" where id = {id_table}'
+                'SELECT name FROM "table" WHERE id = %s',
+                (id_table,)
             )
-            return str(self.cursor.fetchone())
+            result = self.cursor.fetchone()
 
-        except psycopg2.Error as e:
-            print(f"Ошибка в name_table (SQL): {e}")
+            if result:
+                return str(result[0])
+            else:
+                return 'None'
+
+        except psycopg2.Error as error:
+            print(f"Ошибка psycopg2 при работе с методом {inspect.currentframe().f_code.co_name} в SQL:\n", error)
             return 'None'
 
-        except Exception as e:
-            print(f"Ошибка в name_table: {e}")
+        except Exception as error:
+            print(f"Общая ошибка при работе с методом {inspect.currentframe().f_code.co_name}:\n", error)
             return 'None'
 
     def records_user(self, user_id, user_name: str, user_surname: str, username: str, id_platform: int):
@@ -129,7 +136,7 @@ class PostgresConnection:
             )
             self.commit()
         except Exception as error:
-            print("Ошибка при работе с методом records_user\n", error)
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
 
     def exist_user(self, user_id_platform: str) -> bool:
         """
@@ -142,9 +149,8 @@ class PostgresConnection:
                 f"SELECT * FROM users WHERE id_user = {user_id_platform}"
             )
             return bool(self.cursor.fetchone())
-
         except Exception as error:
-            print("Ошибка при работе с методом exist_user\n", error)
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
 
     def create_table(self, name: str, description: str, id_owner: int) -> str:
         """
@@ -230,9 +236,7 @@ class PostgresConnection:
                 f"SELECT EXISTS (SELECT 1 FROM records "
                 f"WHERE id_table = {id_table}) AS exists;"
             )
-            result = self.cursor.fetchone()[0]  # Получаем первый элемент из результата (True или False)
-
-            return bool(result)  # Явно преобразуем в bool
+            return bool(self.cursor.fetchone())  # Явно преобразуем в bool
 
         except psycopg2.Error as error:
             print("Ошибка при работе с методом exists_table в sql\n", error)
@@ -240,21 +244,29 @@ class PostgresConnection:
         except Exception as error:
             print("Ошибка при работе с методом exists_table\n", error)
 
-    def show_all_participants_table(self, id_table) -> list :
+    def show_all_participants_table(self, id_table) -> list:
         """
-        Метод, который возврощаяет участников таблиц
-        Метод, которая возвращаяет участников таблицы
-        :id_table id_table: Id таблицы которое надо проверить
+        Метод, который возвращаяет участников таблицы.
+        :id_table: Id таблицы которое надо проверить
         :return: True если есть и наоборот.
         """
         try:
             # Используем параметризованный запрос для защиты от SQL-инъекций
             self.cursor.execute(
-                "select users.user_name, users.user_surname, users.username from users "
-                "inner join records "
-                f"on records.id_table = {id_table}"
+                """
+                SELECT 
+                    users.id_user,
+                    users.user_name,
+                    users.user_surname,
+                    users.username,
+                    platforms."name"
+                FROM users 
+                INNER JOIN platforms ON users."platform" = platforms."id"
+                where users.id in (select id_name from records r where id_table = %s)
+                """,
+                (id_table,)
             )
-            return [self.cursor.fetchone()]  # Получаем первый элемент из результата (True или False)
+            return self.cursor.fetchall()  # Получаем первый элемент из результата (True или False)
 
         except psycopg2.Error as error:
             print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name} в sql\n", error)
@@ -352,10 +364,8 @@ class PostgresConnection:
             return [row[0] for row in rows] if rows else []
 
         except psycopg2.Error as error:
-
             print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name} в sql\n", error)
         except Exception as error:
-
             print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
 
     def visibility(self, id_table) -> type[bool, str]:
@@ -396,6 +406,40 @@ class PostgresConnection:
             print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
             return False
 
+    def select_rando_user(self, id_table: int):
+        """
+        Метод, который возвращаяет участников таблицы.
+        :id_table: Id таблицы которое надо проверить
+        :return: True если есть и наоборот.
+        """
+        try:
+            # Используем параметризованный запрос для защиты от SQL-инъекций
+            self.cursor.execute(
+                """
+                SELECT 
+                    users.id_user, 
+                    users.user_name, 
+                    users.user_surname, 
+                    users.username, 
+                    platforms."name" AS platform_name
+                FROM 
+                    users
+                INNER JOIN 
+                    platforms ON users."platform" = platforms."id"
+                ORDER BY 
+                    RANDOM()
+                LIMIT 1;
+                """,
+                (id_table,)
+            )
+            return [self.cursor.fetchone()]  # Получаем первый элемент из результата (True или False)
+
+        except psycopg2.Error as error:
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name} в sql\n", error)
+
+        except Exception as error:
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
+
 
 if __name__ == "__main__":
     db = PostgresConnection(
@@ -403,5 +447,5 @@ if __name__ == "__main__":
             password="PENROG21"
     )
     db.connect()
-    db.exist_user('3')
-    print(db.visibility(1))
+
+    print(db.show_all_participants_table(13))

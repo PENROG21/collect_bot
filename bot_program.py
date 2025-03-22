@@ -1,6 +1,8 @@
 from typing import List, Union
 import telebot
 from telebot import types
+import pandas as pd
+import os
 
 from data_base import PostgresConnection
 
@@ -222,6 +224,7 @@ def handle_table_name(message):
     markup.add(item1)
     bot.send_message(message.chat.id, "Введите описание таблицы:", reply_markup=markup)
 
+
 @bot.message_handler(
     func=lambda message: user_data.get(message.chat.id, {}).get("state") == "waiting_for_table_description")
 def handle_table_description(message):
@@ -284,26 +287,70 @@ def show_participants(message):
                 bot.reply_to(message, "Нет такой таблицы")
             else:
                 if not db.is_user_owner(table_id, user_id):
-                    bot.reply_to(message, "Вы не владелец.")
-                else:
                     if not db.visibility(table_id):
                         bot.reply_to(message, "Вы не можете просмотреть таблицу.\nНедостаточно прав")
-                    else:
-                        list_participants = db.show_all_participants_table(table_id)
-                        print(list_participants)
-                        if not list_participants:
-                            bot.reply_to(message, "Таблица пуста.")
-                        else:
-                            info = []
-                            number = 1
-                            for i in list_participants:
-                                info.append(f'{number}) user_name:{i[1]}, Имя:{i[2]}, username:{i[1]}')
-                                number += 1
-                            bot.reply_to(message, f'Таблица {db.name_table(id_table=table_id)}\n Участники: \n'
-                                                  f'{'\n'.join(info)}')
+
+                list_participants = db.show_all_participants_table(table_id)
+
+                if not list_participants[0]:
+                    bot.reply_to(message, "Таблица пуста.")
+                else:
+                    info = []
+                    number = 1
+                    for i in list_participants:
+                        info.append(f'{number}) {i[0]}, {i[1]}, {i[2]}, {i[3]}, {i[4]}')
+                        number += 1
+                    bot.reply_to(message, f'Таблица {db.name_table(id_table=table_id)}\n '
+                                          f'Участники: \nID | Имя | Фамилия | Логин | Платформа \n'
+                                          f'{'\n'.join(info)}')
 
     except Exception as error:
-        print("Ошибка при работе с функцией handle_table_description\n", error)
+        print("Ошибка при работе с функцией show_participants\n", error)
+
+
+@bot.message_handler(commands=['excel'])
+def excel_table(message):
+    """
+       Обработчик команды /excel для получения таблицы в формате Excel.
+    """
+    try:
+        table_id = int(str(message.text)[6:])  # [6:] вместо [5:], т.к. /show
+    except (ValueError, IndexError):
+        bot.reply_to(message, "Неверный формат команды. Используйте /excel <id_таблицы>")
+        return
+    try:
+        user_id = message.from_user.id
+        if not db.exist_user(user_id):
+            bot.reply_to(message, "Вас нет в базе данных")
+        else:
+            if not db.exists_table(table_id):
+                bot.reply_to(message, "Нет такой таблицы")
+            else:
+                if not db.is_user_owner(table_id, user_id):
+                    bot.reply_to(message, "Вы не можете получить excel таблицы.\nНедостаточно прав!")
+
+                list_participants = db.show_all_participants_table(table_id)
+
+                if not list_participants[0]:
+                    bot.reply_to(message, "Таблица пуста.")
+                else:
+                    column_names = ['ID', 'Имя', 'Фамилия', 'Логин', 'Платформа']
+                    df = pd.DataFrame(list_participants, columns=column_names)
+
+                    df.insert(0, '#', range(1, len(df) + 1))
+
+                    file_name = f'{db.name_table(table_id)}.xlsx'
+                    df.to_excel(file_name, index=False)
+
+                    # Отправляем таблицу пользователю
+                    with open(file_name, 'rb') as file:
+                        bot.send_document(message.chat.id, file)
+
+                    # Удаляем файл
+                    os.remove(file_name)
+
+    except Exception as error:
+        print("Ошибка при работе с функцией excel_table\n", error)
 
 
 @bot.message_handler(
@@ -431,6 +478,7 @@ def handle_setting(call):
         print(f"Ошибка в handle_setting: {error}")
         bot.answer_callback_query(call.id, "Произошла ошибка.")
 
+
 def create_main_menu_markup(table_id):
     markup = types.InlineKeyboardMarkup()
     item1 = types.InlineKeyboardButton("Записаться", callback_data=f"subscribe:{table_id}")
@@ -439,6 +487,7 @@ def create_main_menu_markup(table_id):
     markup.add(item1, item2)
     markup.add(settings_button)
     return markup
+
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("back_to_table"))
 def back_to_table(call):
@@ -470,6 +519,10 @@ def back_to_table(call):
 def unknown_command(message):
     bot.reply_to(message, "Неизвестная команда. Попробуйте /help")
 
+
+@bot.message_handler(commands=['random'])
+def random_one_user_table(message):
+    pass
 
 # Запуск бота
 bot.polling(none_stop=True)
