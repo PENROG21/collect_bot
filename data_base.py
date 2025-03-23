@@ -414,25 +414,27 @@ class PostgresConnection:
         """
         try:
             # Используем параметризованный запрос для защиты от SQL-инъекций
-            self.cursor.execute(
-                """
-                SELECT 
-                    users.id_user, 
-                    users.user_name, 
-                    users.user_surname, 
-                    users.username, 
-                    platforms."name" AS platform_name
-                FROM 
-                    users
-                INNER JOIN 
-                    platforms ON users."platform" = platforms."id"
-                ORDER BY 
-                    RANDOM()
-                LIMIT 1;
-                """,
-                (id_table,)
-            )
-            return [self.cursor.fetchone()]  # Получаем первый элемент из результата (True или False)
+            self.cursor.execute("""
+                        SELECT 
+                            users.id_user, 
+                            users.user_name, 
+                            users.user_surname, 
+                            users.username, 
+                            platforms."name" AS platform_name
+                        FROM 
+                            users
+                        INNER JOIN 
+                            platforms ON users."platform" = platforms."id"
+                        INNER JOIN 
+                            records ON users.id = records.id_name
+                        WHERE 
+                            records.id_table = %s
+                        ORDER BY 
+                            RANDOM()
+                        LIMIT 1;
+                    """, (id_table,))
+            results = self.cursor.fetchone()
+            return results  # Получаем первый элемент из результата (True или False)
 
         except psycopg2.Error as error:
             print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name} в sql\n", error)
@@ -448,4 +450,4 @@ if __name__ == "__main__":
     )
     db.connect()
 
-    print(db.show_all_participants_table(13))
+    print(db.select_rando_user(13), "34")

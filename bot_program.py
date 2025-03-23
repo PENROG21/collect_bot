@@ -8,7 +8,7 @@ from data_base import PostgresConnection
 
 
 # вводим токен бота
-bot = telebot.TeleBot("5929718382:AAFZXsV2YldpqY7KCW4bbwyorLwfWHZiIo0")
+bot = telebot.TeleBot("7716080556:AAHJN8nkSiiEwYNnXR9DTm9JSetyi-PoKrc")
 
 db = PostgresConnection(
     database="telebot",
@@ -292,17 +292,15 @@ def show_participants(message):
 
                 list_participants = db.show_all_participants_table(table_id)
 
-                if not list_participants[0]:
+                if not list_participants:  # Проверка на пустоту списка упрощена
                     bot.reply_to(message, "Таблица пуста.")
                 else:
-                    info = []
-                    number = 1
-                    for i in list_participants:
-                        info.append(f'{number}) {i[0]}, {i[1]}, {i[2]}, {i[3]}, {i[4]}')
-                        number += 1
-                    bot.reply_to(message, f'Таблица {db.name_table(id_table=table_id)}\n '
-                                          f'Участники: \nID | Имя | Фамилия | Логин | Платформа \n'
-                                          f'{'\n'.join(info)}')
+                    table_name = db.name_table(id_table=table_id)
+                    header = "ID | Имя | Фамилия | Логин | Платформа"
+                    rows = [f"{num + 1}) {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]}" for num, row in
+                            enumerate(list_participants)]
+                    output = f"Таблица {table_name}\nУчастники:\n{header}\n{chr(10).join(rows)}"  # chr(10) - символ новой строки
+                    bot.reply_to(message, output)
 
     except Exception as error:
         print("Ошибка при работе с функцией show_participants\n", error)
@@ -515,14 +513,57 @@ def back_to_table(call):
 
 
 # Обработчик всех сообщений, начинающихся с "/" и не соответствующих известным командам.
-@bot.message_handler(func=lambda message: message.text.startswith('/'))
-def unknown_command(message):
-    bot.reply_to(message, "Неизвестная команда. Попробуйте /help")
 
 
 @bot.message_handler(commands=['random'])
 def random_one_user_table(message):
-    pass
+    """
+    Обработчик команды /random для отображения случайного участника таблицы.
+    """
+    try:
+        table_id = int(str(message.text)[8:])  # Изменено на [8:], так как команда /random
+    except (ValueError, IndexError):
+        bot.reply_to(message, "Неверный формат команды. Используйте /random <id_таблицы>")
+        return
+
+    try:
+        user_id = message.from_user.id
+        if not db.exist_user(user_id):
+            bot.reply_to(message, "Вас нет в базе данных")
+        else:
+            if not db.exists_table(table_id):
+                bot.reply_to(message, "Нет такой таблицы")
+            else:
+                if not db.is_user_owner(table_id, user_id):
+                    bot.reply_to(message, "Вы не можете просмотреть эту таблицу.\nНедостаточно прав!")
+                    return
+
+                list_participants = db.select_rando_user(table_id)
+
+                if list_participants is None:
+                    bot.reply_to(message, "В таблице нет участников.")
+                else:
+                    user_id, user_name, user_surname, username, platform_name = list_participants  # Распаковка кортежа
+
+                    # Форматирование строки с данными
+                    output_string = (
+                        f"Таблица: {db.name_table(id_table=table_id)}\n"
+                        f"Участник:\n"
+                        f"ID: {user_id}\n"
+                        f"Имя: {user_name}\n"
+                        f"Фамилия: {user_surname if user_surname else '-'}\n"  # Проверка на None
+                        f"Логин: {username if username else '-'}\n"  # Проверка на None
+                        f"Платформа: {platform_name}"
+                    )
+                    bot.reply_to(message, output_string)
+
+    except Exception as error:
+        print(f"Ошибка в random_one_user_table: {error}")
+
+
+@bot.message_handler(func=lambda message: message.text.startswith('/'))
+def unknown_command(message):
+    bot.reply_to(message, "Неизвестная команда. Попробуйте /help")
 
 # Запуск бота
 bot.polling(none_stop=True)
