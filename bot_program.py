@@ -6,7 +6,6 @@ import os
 
 from data_base import PostgresConnection
 
-
 # вводим токен бота
 bot = telebot.TeleBot("7716080556:AAHJN8nkSiiEwYNnXR9DTm9JSetyi-PoKrc")
 
@@ -63,59 +62,81 @@ def view_my_registrations_handler(message):
         bot.send_message(message.chat.id, print_table(owen_participants))
 
 
-def print_table(id_tables: Union[int, List[int]]):
+def print_table(id_tables: Union[int, List[int]]) -> str:
+    """
+    Формирует строку с информацией о таблице/таблицах.
+
+    Args:
+        id_tables: ID таблицы (int) или список ID таблиц (List[int]).
+
+    Returns:
+        Строка с информацией о таблице/таблицах, разделенная переносами строк.
+        В случае ошибки возвращает пустую строку.
+    """
     try:
-            if isinstance(id_tables, int):
-                id_tables = [id_tables]
-            results = []
-            for table_id in id_tables:
-                # Из id таблиц получаем информацию об них
-                info_table = db.get_info_table(table_id)
+        if isinstance(id_tables, int):
+            id_tables = [id_tables]
 
-                name = info_table[0]
-                description = info_table[1]
+        results = []
+        for table_id in id_tables:
+            # Из id таблиц получаем информацию об них
+            info_table = db.get_info_table(table_id)
 
-                results.append(f'id: /{table_id}\n'
-                               f'Название Таблицы {name}\nОписание '
-                               f'{description}\n')
-            return '\n'.join(results)  # Возвращаем все строки
+            if not info_table:
+                print(f"Не удалось получить информацию о таблице с ID {table_id}")
+                continue  # Переходим к следующей таблице, если не удалось получить информацию
+
+            name, description = info_table
+            results.append(f"📃 *Название Таблицы:* {name}\n"
+                           f"📝 *Описание:* {description}\n"
+                           f"🆔 *ID:* /{table_id}\n")
+
+        return "\n".join(results)  # Возвращаем все строки, разделенные переносами строк
+
     except Exception as e:
-        print(e)
+        print(f"Ошибка в print_table: {e}")
+        return ""  # Возвращаем пустую строку в случае ошибки
 
 
 @bot.message_handler(func=lambda message: message.text.startswith('/') and message.text[1:].isdigit())
 def handle_table_link(message):
+    """Обрабатывает ввод ссылки на таблицу (например, /12)."""
     try:
-        anser = str(message.text)
-        if anser.startswith('/'):
-            table_id = int(anser[1:])  # Извлекаем ID таблицы без '/'
-        else:
-            table_id = int(anser)
+        table_id_str = message.text[1:] if message.text.startswith('/') else message.text
+        table_id = int(table_id_str)
 
-        table_name, table_description = db.get_info_table(table_id)  # Получаем информацию о таблице
+        table_name, table_description = db.get_info_table(table_id)
 
         if table_name:  # Если таблица существует
             markup = types.InlineKeyboardMarkup()
-            messeage_send = []
+            messages_to_send = []
+
+            user_id = message.from_user.id
 
             # Проверяем, записан ли пользователь в таблицу
-            if db.check_user_in_table(table_id, message.from_user.id):
-                item1 = types.InlineKeyboardButton("Отписаться", callback_data=f"unsubscribe:{table_id}")
-                messeage_send.append('Вы записаны в таблицу. Вы можете отписаться.')
+            is_user_subscribed = db.check_user_in_table(table_id, user_id)
+            if is_user_subscribed:
+                item1 = types.InlineKeyboardButton("✅ Отписаться", callback_data=f"unsubscribe:{table_id}")
+                messages_to_send.append("Вы записаны в таблицу. Вы можете отписаться.")
             else:
-                item1 = types.InlineKeyboardButton("Записаться", callback_data=f"subscribe:{table_id}")
-                messeage_send.append('Вы не записаны в таблицу.')
+                item1 = types.InlineKeyboardButton("📝 Записаться", callback_data=f"subscribe:{table_id}")
+                messages_to_send.append("Вы не записаны в таблицу.")
 
             # Проверяем, является ли пользователь владельцем таблицы
-            if db.is_user_owner(table_id, message.from_user.id):
-                settings_button = types.InlineKeyboardButton("Настройки", callback_data=f"show_settings:{table_id}")
+            if db.is_user_owner(table_id, user_id):
+                settings_button = types.InlineKeyboardButton("⚙️ Настройки",
+                                                             callback_data=f"show_settings:{table_id}")
                 markup.add(settings_button)
 
-            markup.add(item1)  # Добавляем кнопку "Записаться" или "Отписаться"
-            messeage_send.append(print_table(table_id))  # Добавляем информацию о таблице
+            markup.add(item1)
 
-            # Отправляем сообщение с кнопками
-            bot.send_message(message.chat.id, '\n'.join(messeage_send), reply_markup=markup)
+            table_info = print_table(table_id)  # Получаем информацию о таблице
+
+            messages_to_send.insert(0, table_info)
+
+            # Отправляем сообщение с кнопками и информацией
+            bot.send_message(message.chat.id, '\n'.join(messages_to_send),
+                             reply_markup=markup, parse_mode="Markdown") #Включаем Markdown
         else:
             bot.reply_to(message, f"Таблица с ID {table_id} не найдена.")
 
@@ -123,6 +144,7 @@ def handle_table_link(message):
         bot.reply_to(message, "Неверный формат данных☹️.\nВведите целое число (например, 12 или /12).")
 
     except Exception as e:
+        print(f"Ошибка в handle_table_link: {e}")
         bot.reply_to(message, f"Произошла ошибка: {e}")
 
 
@@ -133,6 +155,7 @@ def callback_inline(call):
         if call.message:  # Проверяем, что сообщение существует
             data = call.data.split(":")
             action = data[0]
+            markup = types.InlineKeyboardMarkup()
 
             if action == "show_settings":
                 show_settings(call)  # Вызов
@@ -150,7 +173,6 @@ def callback_inline(call):
                     bot.send_message(call.message.chat.id, f"Не удалось отписаться от таблицы с ID {table_id}")
 
                 # Обновляем сообщение, чтобы отобразить кнопку "Записаться"
-                markup = types.InlineKeyboardMarkup()
                 item1 = types.InlineKeyboardButton("Записаться", callback_data=f"subscribe:{table_id}")
                 markup.add(item1)
                 bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id,
@@ -173,7 +195,6 @@ def callback_inline(call):
                 else:
                     bot.send_message(call.message.chat.id, f"Вы уже записаны в таблицу с ID {table_id}")
                 # Обновляем сообщение, чтобы отобразить кнопку "Отписаться"
-                markup = types.InlineKeyboardMarkup()
                 item1 = types.InlineKeyboardButton("Отписаться", callback_data=f"unsubscribe:{table_id}")
                 markup.add(item1)
                 bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id,
@@ -191,6 +212,7 @@ def callback_inline(call):
         print(f"Ошибка в callback_inline: {e}")
         bot.send_message(call.message.chat.id, f"Произошла ошибка: {e}")
 
+
 # Удалите функцию records_table, она больше не нужна
 
 
@@ -198,9 +220,9 @@ def callback_inline(call):
 @bot.message_handler(commands=['help'])
 def help_command(message):
     bot.send_message(message.chat.id, "Доступные команды:\n"
-                     "/start - начать работу с ботом\n"
-                     "/help - показать список команд\n"
-                     "/info - получить информацию")
+                                      "/start - начать работу с ботом\n"
+                                      "/help - показать список команд\n"
+                                      "/info - получить информацию")
 
 
 @bot.message_handler(func=lambda message: message.text == "Записаться в таблицу")
@@ -408,35 +430,72 @@ def handle_table_description(message):
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("show_settings"))
 def show_settings(call):
+    """Отображает настройки таблицы с информацией о таблице."""
     try:
-        chat_id = call.message.chat.id
-        data = call.data.split(":")
-        if len(data) > 1:
-            try:
-                table_id = int(data[1])  # Извлекаем ID таблицы
-                print(f"Получен table_id: {table_id}")
-            except ValueError:
-                bot.send_message(chat_id, "Некорректный ID таблицы.")
-                return
-        else:
-            bot.send_message(chat_id, "Не удалось получить ID таблицы.")
-            return
+        table_id = int(call.data.split(":")[1]) #Получаем table_id
+        # Получаем информацию о таблице
+        table_name, table_description = db.get_info_table(table_id)
 
-        # Создаем кнопки настроек
-        markup = types.InlineKeyboardMarkup()
-        button1 = types.InlineKeyboardButton("Уведомления ❌", callback_data=f"setting_1_{table_id}")
-        button2 = types.InlineKeyboardButton("Visibility", callback_data=f"setting_2_{table_id}")
-        button3 = types.InlineKeyboardButton("Назад", callback_data=f"back_to_table:{table_id}")
-        markup.add(button1, button2)
-        markup.add(button3)
+        # Формируем сообщение с информацией о таблице и настройками
+        output_message = (
+            f"⚙️ *Настройки таблицы*\n"
+            f"🆔 *ID:* /{table_id}\n"
+            f"📃 *Название:* {table_name}\n"
+            f"📝 *Описание:* {table_description}\n\n"
+            "*Выберите настройку:*" #Выводим сообщение перед настройками
+        )
 
-        # Обновляем сообщение
-        bot.edit_message_text(chat_id=chat_id,
-                              message_id=call.message.message_id,
-                              text="Выберите настройку\nVisibility - Участники могут смотреть содержимое таблицы.",
-                              reply_markup=markup)
-    except Exception as error:
-        print(f"Ошибка в show_settings: {error}")
+        markup = types.InlineKeyboardMarkup(row_width=1)  # Чтобы кнопки были в столбик
+
+        # Получаем текущее состояние уведомлений
+        is_notification_enabled = db.checking_for_notification(table_id)
+
+        # Текст для кнопки уведомлений в зависимости от состояния
+        notification_text = "🔔 Включить уведомления" if not is_notification_enabled else "🔕 Отключить уведомления"
+
+        item_visibility = types.InlineKeyboardButton(
+            "👁️ Видимость: Участники могут видеть содержимое",
+            callback_data=f"setting_2_{table_id}"
+        )
+
+        item_notifications = types.InlineKeyboardButton(
+            notification_text,
+            callback_data=f"setting_1_{table_id}"
+        )
+
+        item_back = types.InlineKeyboardButton(
+            "⬅️ Назад",
+            callback_data=f"back_to_table:{table_id}"
+        )
+        # Добавляем все кнопки
+        markup.add(item_visibility, item_notifications, item_back)
+
+        # Отправляем сообщение с информацией о таблице и кнопками настроек
+        bot.edit_message_text(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            text=output_message,
+            reply_markup=markup,
+            parse_mode="Markdown"
+        )
+        bot.answer_callback_query(call.id, "Настройки таблицы")
+
+    except Exception as e:
+        print(f"Ошибка в show_settings: {e}")
+        bot.send_message(call.message.chat.id, f"Произошла ошибка: {e}")
+        bot.answer_callback_query(call.id, f"Произошла ошибка: {e}")
+
+
+# Обработчик для кнопки "Назад в меню"
+@bot.callback_query_handler(func=lambda call: call.data.startswith("back_to_menu:"))
+def handle_back_to_menu(call):
+    """Обрабатывает нажатие кнопки 'Назад в меню'."""
+    try:
+        user_id = int(call.data.split(":")[1])  # Получаем user_id из callback_data
+        send_welcome(call.message)  # Отправляем приветственное сообщение с меню
+    except Exception as e:
+        print(f"Ошибка при возврате в главное меню: {e}")
+        bot.answer_callback_query(call.id, "Произошла ошибка при возврате в меню.")
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("setting_"))
@@ -457,39 +516,58 @@ def handle_setting(call):
         table_id = int(table_id)
         name_table = db.name_table(table_id)  # Получаем название таблицы
 
-        match setting_number:
-            case 1:
-                if db.set_notification(id_table=table_id):
-
-                    # Отправляем пользователю итог операции.
-                    if db.checking_for_notification(table_id):
-                        message = f"Вы теперь будете получать уведомления о таблице {name_table}."
-                    else:
-                        message = f"Вы теперь не будете получать уведомления о таблице {name_table}."
+        if setting_number == 1:
+            if db.set_notification(id_table=table_id):
+                # Отправляем пользователю итог операции.
+                if db.checking_for_notification(table_id):
+                    bot.answer_callback_query(call.id, f"Уведомления для таблицы {name_table} включены.")
                 else:
-                    message = "Ошибка"
-            case 2:
-                if db.change_show_participants(table_id):
-                    visibility_status = "могут" if db.visibility(table_id) else "не могут"
-                    message = f"Теперь участники таблицы {name_table} {visibility_status} смотреть содержимое."
-                else:
-                    message = "Ошибка при изменении видимости."
-            case _:
-                message = "Неизвестная настройка."
+                    bot.answer_callback_query(call.id, f"Уведомления для таблицы {name_table} выключены.")
+            else:
+                bot.answer_callback_query(call.id, "Ошибка при изменении уведомлений.")
 
-        # Обновляем текст сообщения
-        updated_message = f"{message}"
+        elif setting_number == 2:
+            if db.change_show_participants(table_id):
+                visibility_status = "могут" if db.visibility(table_id) else "не могут"
+                bot.answer_callback_query(call.id, f"Теперь участники таблицы {name_table} {visibility_status} смотреть содержимое.")
+            else:
+                bot.answer_callback_query(call.id, "Ошибка при изменении видимости.")
+        else:
+            bot.answer_callback_query(call.id, "Неизвестная настройка.")
+            return
 
-        # Создаем кнопку "Назад"
-        markup = types.InlineKeyboardMarkup()
-        back_button = types.InlineKeyboardButton("Назад", callback_data=f"back_to_table:{table_id}")
-        markup.add(back_button)
+        # Получаем текущее состояние уведомлений и видимости из базы данных
+        is_notification_enabled = db.checking_for_notification(table_id)
+        is_visibility_enabled = db.visibility(table_id) # Assuming `visibility` returns True/False
 
-        # Обновляем сообщение
-        bot.edit_message_text(chat_id=call.message.chat.id,
-                              message_id=call.message.message_id,
-                              text=updated_message,
-                              reply_markup=markup)
+        # Формируем новые тексты для кнопок
+        visibility_text = "👀 Видимость: " + ("✅ Включена" if is_visibility_enabled else "❌ Выключена")
+        notification_text = "🔔 Уведомления: " + ("✅ Включены" if is_notification_enabled else "❌ Выключены")
+
+        # Создаем новые кнопки
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        item_visibility = types.InlineKeyboardButton(
+            text=visibility_text,
+            callback_data=f"setting_2_{table_id}"
+        )
+        item_notifications = types.InlineKeyboardButton(
+            text=notification_text,
+            callback_data=f"setting_1_{table_id}"
+        )
+
+        item_back = types.InlineKeyboardButton(
+            text="⬅ Назад",
+            callback_data=f"back_to_table:{table_id}"
+        )
+
+        markup.add(item_visibility, item_notifications, item_back)
+
+        # Обновляем только клавиатуру
+        bot.edit_message_reply_markup(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            reply_markup=markup
+        )
 
     except Exception as error:
         print(f"Ошибка в handle_setting: {error}")
@@ -506,29 +584,64 @@ def create_main_menu_markup(table_id):
     return markup
 
 
+def display_table_info(message, table_id, user_id):
+    """Отображает информацию о таблице и кнопки действий."""
+    try:
+        # Проверяем, записан ли пользователь в таблицу
+        is_user_subscribed = db.check_user_in_table(table_id, user_id)
+        markup = types.InlineKeyboardMarkup(row_width=1)
+
+        table_info = []
+        table_info.append(print_table(table_id))
+
+        table_info.append('\nВы записаны в таблицу.')
+
+        if is_user_subscribed:
+            item1 = types.InlineKeyboardButton("✅ Отписаться", callback_data=f"unsubscribe:{table_id}")
+            table_info.append('Вы можете отписаться')
+        else:
+            item1 = types.InlineKeyboardButton("📝 Записаться", callback_data=f"subscribe:{table_id}")
+            table_info.append('Вы не можете отписаться')
+
+        # Добавляем кнопку "Настройки"
+        item2 = types.InlineKeyboardButton("⚙️ Настройки", callback_data=f"show_settings:{table_id}")
+
+        markup.add(item1, item2)
+
+        output_message = ' '.join(table_info)  # Собираем сообщение
+
+        bot.edit_message_text(chat_id=message.chat.id,
+                               message_id=message.message_id,
+                               text=output_message,
+                               reply_markup=markup,
+                               parse_mode="Markdown")
+    except Exception as e:
+        print(f"Ошибка при отображении информации о таблице: {e}")
+        bot.reply_to(message, f"Произошла ошибка при отображении информации: {e}")
+
+
 @bot.callback_query_handler(func=lambda call: call.data.startswith("back_to_table"))
 def back_to_table(call):
+    """Обработчик нажатия кнопки 'Назад к таблице'."""
     try:
         data = call.data.split(":")
         if len(data) > 1:
             table_id = int(data[1])  # Извлекаем ID таблицы
+            user_id = call.from_user.id #Получаем id пользователя
             print(f"Получен table_id: {table_id}")
         else:
             bot.answer_callback_query(call.id, "Некорректный ID таблицы.")
             return
 
-        # Возвращаем пользователя к исходному сообщению с кнопками "Записаться/Отписаться"
-        # Создаем новое сообщение с информацией о таблице
-        bot.edit_message_text(chat_id=call.message.chat.id,
-                              message_id=call.message.message_id,
-                              text=f"Таблица с ID {table_id}",
-                              reply_markup=create_main_menu_markup(table_id))
-        print("Сообщение обновлено в back_to_table")
+        # Отображаем информацию о таблице с кнопками
+        display_table_info(call.message, table_id, user_id)
 
+    except ValueError as e:
+        print(f"Ошибка в back_to_table (ValueError): {e}")
+        bot.answer_callback_query(call.id, "Некорректный ID таблицы.")
     except Exception as error:
         print(f"Ошибка в back_to_table: {error}")
         bot.answer_callback_query(call.id, "Произошла ошибка.")
-
 
 # Обработчик всех сообщений, начинающихся с "/" и не соответствующих известным командам.
 
@@ -598,8 +711,8 @@ def notification_signed_user(id_table, id_user):
                 f"Не удалось получить дополнительную информацию о пользователе."
             )
         else:
-            user_name = data_user[0]  #Имя
-            user_surname = data_user[1] if data_user[1] else "Не указана" # Фамилия, если есть
+            user_name = data_user[0]
+            user_surname = data_user[1] if data_user[1] else "Не указана"  # Фамилия, если есть
 
             notification_text = (
                 f"🎉 В вашу таблицу \"{table_name}\" (ID: {id_table}) "
