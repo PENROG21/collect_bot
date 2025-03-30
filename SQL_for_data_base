@@ -61,3 +61,5 @@ ADD COLUMN show_participants BOOLEAN DEFAULT FALSE;
 -- Обновление существующих строк, установка значения FALSE
 UPDATE "table"
 SET show_participants = false ;
+
+alter table "table" add column notification BOOLEAN default false;

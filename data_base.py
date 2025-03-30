@@ -308,7 +308,7 @@ class PostgresConnection:
 
     def is_user_owner(self, table_id, owner_id):
         """
-        Быстро проверяет что пользователь, владелrец таблицы
+        Быстро проверяет что пользователь, владелец таблицы
         Возвращает True, если запись существует, иначе False.
         """
         try:
@@ -350,7 +350,7 @@ class PostgresConnection:
 
     def get_table_info_for_user(self, id_table: int) -> Optional[List[int]]:
         """
-        Метод, который возвращает id таблиц где пользователь принимает участие.
+        Метод, который возвращает id таблицы где пользователь принимает участие.
         :param id_table:
         :return:
         """
@@ -442,6 +442,87 @@ class PostgresConnection:
         except Exception as error:
             print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
 
+    def checking_for_notification(self, id_table: int) -> bool:
+        """
+        Проверяет нужнали владельцу таблицы увидомление.
+        :param id_table: id таблицы
+        :return: True если нужна и наоборот.
+        """
+        try:
+            # Используем параметризованный запрос для защиты от SQL-инъекций
+            self.cursor.execute('select notification from "table" where id = %s;', (id_table,)
+            )
+            return bool(self.cursor.fetchone()[0])
+
+        except psycopg2.Error as error:
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name} в sql\n", error)
+            self.rollback()
+            return False
+
+        except Exception as error:
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
+            self.rollback()
+            return False
+
+    def set_notification(self, id_table: int) -> bool:
+        """
+        Включает или выключает уведомление для таблицы с указанным ID.
+        Если уведомление было включено, оно будет выключено, и наоборот.
+        """
+        try:
+            self.cursor.execute('''
+            update "table" set notification = not notification where id = %s;
+            ''', (id_table,)
+            )
+            self.commit()
+            return True
+
+        except psycopg2.Error as error:
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name} в sql\n", error)
+        except Exception as error:
+
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
+
+    def get_id_owen_table(self, id_table: int):
+        """
+
+        :param id_table:
+        :return:
+        """
+        try:
+            # Используем параметризованный запрос для защиты от SQL-инъекций
+            self.cursor.execute('select id_user from users u where id = '
+                                '(select "table"."owner" from "table" where id = %s)', (id_table,)
+                                )
+            return self.cursor.fetchone()[0]
+
+        except psycopg2.Error as error:
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name} в sql\n", error)
+            self.rollback()
+            return False
+
+        except Exception as error:
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
+            self.rollback()
+            return False
+
+    def get_info_user_id(self, id_user):
+        try:
+            # Используем параметризованный запрос для защиты от SQL-инъекций
+            self.cursor.execute('select user_name, username from users where id_user = %s', (id_user,)
+                                )
+            return self.cursor.fetchone()
+
+        except psycopg2.Error as error:
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name} в sql\n", error)
+            self.rollback()
+            return False
+
+        except Exception as error:
+            print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
+            self.rollback()
+            return False
+
 
 if __name__ == "__main__":
     db = PostgresConnection(
@@ -449,5 +530,4 @@ if __name__ == "__main__":
             password="PENROG21"
     )
     db.connect()
-
-    print(db.select_rando_user(13), "34")
+    print(db.get_info_user_id(5064541983))

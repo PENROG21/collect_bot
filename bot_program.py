@@ -21,9 +21,14 @@ user_data = {}
 # Добавление данных о пользователе
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.send_message(message.chat.id, 'Приветствую вас на телеграмм боте collect.')
+    bot.send_message(message.chat.id,
+                     f"🎉 Привет {message.from_user.first_name}! "
+                     f"\n\nЭто collect - ваш помощник для организации мероприятий. \n"
+                     "Больше никаких списков на бумаге! Создайте таблицу и делитесь ссылкой🤩.\n"
+                     "Для записи в таблицу или получения информации просто отправьте ее ID😉.\nДля получения "
+                     "инструкции нажмите /help")
 
-    markup = telebot.types.ReplyKeyboardMarkup(row_width=1)
+    markup = telebot.types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
     item1 = telebot.types.KeyboardButton("Создать таблицу")
     item2 = telebot.types.KeyboardButton("Записаться в таблицу")
     item3 = telebot.types.KeyboardButton("Посмотреть мои таблицы")
@@ -81,8 +86,12 @@ def print_table(id_tables: Union[int, List[int]]):
 @bot.message_handler(func=lambda message: message.text.startswith('/') and message.text[1:].isdigit())
 def handle_table_link(message):
     try:
-        table_id = int(message.text[1:])  # Извлекаем ID таблицы
-        print(table_id)
+        anser = str(message.text)
+        if anser.startswith('/'):
+            table_id = int(anser[1:])  # Извлекаем ID таблицы без '/'
+        else:
+            table_id = int(anser)
+
         table_name, table_description = db.get_info_table(table_id)  # Получаем информацию о таблице
 
         if table_name:  # Если таблица существует
@@ -109,6 +118,9 @@ def handle_table_link(message):
             bot.send_message(message.chat.id, '\n'.join(messeage_send), reply_markup=markup)
         else:
             bot.reply_to(message, f"Таблица с ID {table_id} не найдена.")
+
+    except ValueError:
+        bot.reply_to(message, "Неверный формат данных☹️.\nВведите целое число (например, 12 или /12).")
 
     except Exception as e:
         bot.reply_to(message, f"Произошла ошибка: {e}")
@@ -154,6 +166,10 @@ def callback_inline(call):
                 # Записываем пользователя в таблицу
                 if db.records_table(table_id, call.from_user.id):
                     bot.send_message(call.message.chat.id, f"Вы успешно записались в таблицу с ID {table_id}")
+
+                    # Проверяем нужно-ли уведомлять владельца о записи
+                    if db.checking_for_notification(table_id):
+                        notification_signed_user(id_table=table_id, id_user=call.from_user.id)
                 else:
                     bot.send_message(call.message.chat.id, f"Вы уже записаны в таблицу с ID {table_id}")
                 # Обновляем сообщение, чтобы отобразить кнопку "Отписаться"
@@ -299,7 +315,7 @@ def show_participants(message):
                     header = "ID | Имя | Фамилия | Логин | Платформа"
                     rows = [f"{num + 1}) {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]}" for num, row in
                             enumerate(list_participants)]
-                    output = f"Таблица {table_name}\nУчастники:\n{header}\n{chr(10).join(rows)}"  # chr(10) - символ новой строки
+                    output = f"Таблица {table_name}\nУчастники:\n{header}\n{chr(10).join(rows)}"
                     bot.reply_to(message, output)
 
     except Exception as error:
@@ -393,7 +409,6 @@ def handle_table_description(message):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("show_settings"))
 def show_settings(call):
     try:
-        print("Обработчик show_settings вызван")
         chat_id = call.message.chat.id
         data = call.data.split(":")
         if len(data) > 1:
@@ -420,7 +435,6 @@ def show_settings(call):
                               message_id=call.message.message_id,
                               text="Выберите настройку\nVisibility - Участники могут смотреть содержимое таблицы.",
                               reply_markup=markup)
-        print("Сообщение обновлено в show_settings")
     except Exception as error:
         print(f"Ошибка в show_settings: {error}")
 
@@ -428,7 +442,6 @@ def show_settings(call):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("setting_"))
 def handle_setting(call):
     try:
-        print("Обработчик handle_setting вызван")
         data = call.data.split("_")
         if len(data) < 3:
             bot.answer_callback_query(call.id, "Некорректный формат callback_data")
@@ -443,11 +456,18 @@ def handle_setting(call):
 
         table_id = int(table_id)
         name_table = db.name_table(table_id)  # Получаем название таблицы
-        print(f"Получено название таблицы: {name_table}")
 
         match setting_number:
             case 1:
-                message = f"Вы теперь будете получать уведомления о таблице {name_table}."
+                if db.set_notification(id_table=table_id):
+
+                    # Отправляем пользователю итог операции.
+                    if db.checking_for_notification(table_id):
+                        message = f"Вы теперь будете получать уведомления о таблице {name_table}."
+                    else:
+                        message = f"Вы теперь не будете получать уведомления о таблице {name_table}."
+                else:
+                    message = "Ошибка"
             case 2:
                 if db.change_show_participants(table_id):
                     visibility_status = "могут" if db.visibility(table_id) else "не могут"
@@ -470,7 +490,6 @@ def handle_setting(call):
                               message_id=call.message.message_id,
                               text=updated_message,
                               reply_markup=markup)
-        print("Сообщение обновлено в handle_setting")
 
     except Exception as error:
         print(f"Ошибка в handle_setting: {error}")
@@ -490,7 +509,6 @@ def create_main_menu_markup(table_id):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("back_to_table"))
 def back_to_table(call):
     try:
-        print("Обработчик back_to_table вызван")
         data = call.data.split(":")
         if len(data) > 1:
             table_id = int(data[1])  # Извлекаем ID таблицы
@@ -561,9 +579,46 @@ def random_one_user_table(message):
         print(f"Ошибка в random_one_user_table: {error}")
 
 
+def notification_signed_user(id_table, id_user):
+    """Отправляет уведомление владельцу таблицы о новой записи, включая информацию о пользователе."""
+    try:
+        owner_id = db.get_id_owen_table(id_table)  # Получаем ID владельца таблицы
+        if not owner_id:
+            print(f"Не удалось определить владельца таблицы с ID {id_table}")
+            return  # Завершаем функцию, если не удалось получить ID владельца
+
+        table_name = db.name_table(id_table=id_table)  # Получаем название таблицы
+        data_user = db.get_info_user_id(id_user)  # Получаем данные пользователя
+
+        if not data_user:
+            print(f"Не удалось получить данные пользователя с ID {id_user}")
+            notification_text = (
+                f"В вашу таблицу \"{table_name}\" (ID: {id_table}) "
+                f"записался новый пользователь (ID: {id_user}). "
+                f"Не удалось получить дополнительную информацию о пользователе."
+            )
+        else:
+            user_name = data_user[0]  #Имя
+            user_surname = data_user[1] if data_user[1] else "Не указана" # Фамилия, если есть
+
+            notification_text = (
+                f"🎉 В вашу таблицу \"{table_name}\" (ID: {id_table}) "
+                f"записался новый участник!\n\n"
+                f"👤 Имя: {user_name}\n"
+                f"📝 Фамилия: {user_surname}\n"
+                f"🆔 ID Пользователя: {id_user}"
+            )
+
+        bot.send_message(owner_id, notification_text)  # Отправляем уведомление
+
+    except Exception as error:
+        print(f"Ошибка в notification_signed_user: {error}")
+
+
 @bot.message_handler(func=lambda message: message.text.startswith('/'))
 def unknown_command(message):
     bot.reply_to(message, "Неизвестная команда. Попробуйте /help")
+
 
 # Запуск бота
 bot.polling(none_stop=True)
