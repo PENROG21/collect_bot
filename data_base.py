@@ -368,7 +368,7 @@ class PostgresConnection:
         except Exception as error:
             print(f"Ошибка при работе с методом {inspect.currentframe().f_code.co_name}\n", error)
 
-    def visibility(self, id_table) -> type[bool, str]:
+    def visibility(self, id_table) -> bool:
         """
         Метод, который проверяет, могут - ли участник просматривать таблицу
         :param id_table: id таблицы
