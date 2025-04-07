@@ -7,7 +7,7 @@ import os
 from data_base import PostgresConnection
 
 # вводим токен бота
-bot = telebot.TeleBot("7716080556:AAHJN8nkSiiEwYNnXR9DTm9JSetyi-PoKrc")
+bot = telebot.TeleBot("TELEGRAM_BOT_TOKEN")
 
 db = PostgresConnection(
     database="telebot",
@@ -112,21 +112,29 @@ def display_table_info(chat_id, message_id, table_id, user_id):
         is_user_subscribed = db.check_user_in_table(table_id, user_id)
 
         # Создаем markup для кнопок
-        markup = types.InlineKeyboardMarkup(row_width=1)
+        markup = types.InlineKeyboardMarkup(row_width=2)
 
         # Кнопка "Записаться/Отписаться"
         subscribe_button_text = "✅ Отписаться" if is_user_subscribed else "📝 Записаться"
         subscribe_button_callback = f"unsubscribe:{table_id}" if is_user_subscribed else f"subscribe:{table_id}"
+
+        is_ower = db.is_user_owner(table_id, user_id)
+        if db.visibility(table_id) or is_ower:
+            markup.add(
+                types.InlineKeyboardButton("👥 Смотреть участников", callback_data=f"show_participant:{table_id}"),
+                types.InlineKeyboardButton("📊 Excel", callback_data=f"excel:{table_id}")
+            )
+
         markup.add(types.InlineKeyboardButton(subscribe_button_text, callback_data=subscribe_button_callback))
 
         # Кнопка "Настройки" (отображается только для владельца)
-        if db.is_user_owner(table_id, user_id):
-            markup.add(types.InlineKeyboardButton("⚙️ Настройки", callback_data=f"show_settings:{table_id}"))
-
-        # Кнопка "Отправить другу"
-        invite_link = f"https://t.me/{bot.get_me().username}?start=join_{table_id}"
-        markup.add(types.InlineKeyboardButton("🔗 Отправить другу", url=invite_link))
-
+        if is_ower:
+            # Кнопки управления таблицей (группируем их в один блок)
+            owner_buttons = [
+                types.InlineKeyboardButton("🎲 Случайный участник", callback_data=f"random:{table_id}"),
+                types.InlineKeyboardButton("⚙️ Настройки", callback_data=f"show_settings:{table_id}")
+            ]
+            markup.add(*owner_buttons)
         # Формируем текст сообщения
         table_info = print_table(table_id)
 
@@ -171,51 +179,11 @@ def handle_table_link(message):
         bot.reply_to(message, f"Произошла ошибка: {e}")
 
 
-@bot.message_handler(commands=['join'])
-def join_table(message):
-    """Обрабатывает команду /join tableid=XXX."""
-    try:
-        # Извлекаем tableid из параметров команды
-        params = message.text.split(' ', 1)  # Разделяем команду и параметры
-        if len(params) > 1:
-            params_str = params[1] #Получаем строку tableid=123
-            params_list = params_str.split('=') #Делим строку tableid=123 на массив ["tableid","123"]
-
-            if len(params_list) > 1 and params_list[0].lower() == "tableid" :
-                table_id_str = params_list[1]
-            else:
-                bot.reply_to(message, "Неверный формат ссылки-приглашения.")
-                return
-        else:
-            bot.reply_to(message, "Неверный формат ссылки-приглашения.")
-            return
-
-        if not table_id_str.isdigit():
-            bot.reply_to(message, "Некорректный ID таблицы.")
-            return
-
-        table_id = int(table_id_str)
-        user_id = message.from_user.id  # Получаем id пользователя
-
-        # Проверяем, существует ли таблица
-        table_name, table_description = db.get_info_table(table_id)
-        if not table_name:
-            bot.reply_to(message, f"Таблица с ID {table_id} не найдена.")
-            return
-
-        # Если таблица существует, отображаем информацию о ней
-        display_table_info(message, table_id, user_id)
-
-    except Exception as e:
-        print(f"Ошибка в join_table: {e}")
-        bot.reply_to(message, f"Произошла ошибка: {e}")
-
-
 def get_table_id_from_command(message):
     """Извлекает ID таблицы из команды /join."""
     try:
         text = message.text
-        table_id = text.split('=')[1] #Делим строку /join tableid=123 на массив ["/join tableid","123"]
+        table_id = text.split('=')[1]  # Делим строку /join table_id=123 на массив ["/join tableid","123"]
         return int(table_id)
     except (IndexError, ValueError):
         return None
@@ -260,6 +228,15 @@ def callback_inline(call):
 
                 # Обновляем сообщение через display_table_info
                 display_table_info(call.message.chat.id, call.message.message_id, table_id, user_id)
+
+            elif action == 'excel':
+                excel_table(call.message, table_id)
+
+            elif action == 'show_participant':
+                show_participants(call.message, table_id=table_id)
+
+            elif action == 'random':
+                random_one_user_table(call.message, table_id)
 
             elif action == "setting":
                 handle_setting(call)  # Вызов обработчика настроек
@@ -362,83 +339,69 @@ def handle_table_description(message):
         print("Ошибка при работе с функцией handle_table_description\n", error)
 
 
-@bot.message_handler(commands=['show'])
-def show_participants(message):
+def show_participants(message, table_id):
     try:
-        try:
-            table_id = int(str(message.text)[6:])  # [6:] вместо [5:], т.к. /show
-            print(table_id, 'DF')
-        except (ValueError, IndexError):
-            bot.reply_to(message, "Неверный формат команды. Используйте /show <id_таблицы>")
-            return
-
-        user_id = message.from_user.id
-        if not db.exist_user(user_id):
-            bot.reply_to(message, "Вас нет в базе данных")
+        if not db.exists_table(table_id):
+            bot.reply_to(message, "Нет такой таблицы")
         else:
-            if not db.exists_table(table_id):
-                bot.reply_to(message, "Нет такой таблицы")
+            list_participants = db.show_all_participants_table(table_id)
+
+            if not list_participants:  # Проверка на пустоту списка упрощена
+                bot.reply_to(message, "В этой таблице пока нет ни одного участника 📝")
             else:
-                if not db.is_user_owner(table_id, user_id):
-                    if not db.visibility(table_id):
-                        bot.reply_to(message, "Вы не можете просмотреть таблицу.\nНедостаточно прав")
+                table_name = db.name_table(id_table=table_id)
 
-                list_participants = db.show_all_participants_table(table_id)
+                # Формируем заголовок таблицы с использованием Markdown для жирного текста
+                header = "*ID | Имя | Фамилия | Логин | Платформа*"
 
-                if not list_participants:  # Проверка на пустоту списка упрощена
-                    bot.reply_to(message, "Таблица пуста.")
-                else:
-                    table_name = db.name_table(id_table=table_id)
-                    header = "ID | Имя | Фамилия | Логин | Платформа"
-                    rows = [f"{num + 1}) {row[0]} | {row[1]} | {row[2]} | {row[3]} | {row[4]}" for num, row in
-                            enumerate(list_participants)]
-                    output = f"Таблица {table_name}\nУчастники:\n{header}\n{chr(10).join(rows)}"
-                    bot.reply_to(message, output)
+                # Формируем строки таблицы с нумерацией и выравниванием
+                rows = [
+                    f"{num + 1}. `{row[0]}` | `{row[1]}` | `{row[2]}` | `{row[3]}` | `{row[4]}`"
+                    for num, row in enumerate(list_participants)
+                ]
+
+                # Собираем финальный текст с использованием эмодзи и форматирования
+                output = (
+                        f"📊 *Таблица: {table_name}*\n"
+                        f"👥 *Участники таблицы:*\n\n"
+                        f"{header}\n" +
+                        "\n".join(rows)
+                )
+
+                # Отправляем сообщение с форматированием Markdown
+                bot.reply_to(message, output, parse_mode="Markdown")
 
     except Exception as error:
         print("Ошибка при работе с функцией show_participants\n", error)
 
 
-@bot.message_handler(commands=['excel'])
-def excel_table(message):
+def excel_table(message, table_id):
     """
        Обработчик команды /excel для получения таблицы в формате Excel.
     """
     try:
-        table_id = int(str(message.text)[6:])  # [6:] вместо [5:], т.к. /show
-    except (ValueError, IndexError):
-        bot.reply_to(message, "Неверный формат команды. Используйте /excel <id_таблицы>")
-        return
-    try:
-        user_id = message.from_user.id
-        if not db.exist_user(user_id):
-            bot.reply_to(message, "Вас нет в базе данных")
+        if not db.exists_table(table_id):
+            bot.reply_to(message, "Нет такой таблицы")
         else:
-            if not db.exists_table(table_id):
-                bot.reply_to(message, "Нет такой таблицы")
+            list_participants = db.show_all_participants_table(table_id)
+
+            if not list_participants[0]:
+                bot.reply_to(message, "Таблица пуста.")
             else:
-                if not db.is_user_owner(table_id, user_id):
-                    bot.reply_to(message, "Вы не можете получить excel таблицы.\nНедостаточно прав!")
+                column_names = ['ID', 'Имя', 'Фамилия', 'Логин', 'Платформа']
+                df = pd.DataFrame(list_participants, columns=column_names)
 
-                list_participants = db.show_all_participants_table(table_id)
+                df.insert(0, '#', range(1, len(df) + 1))
 
-                if not list_participants[0]:
-                    bot.reply_to(message, "Таблица пуста.")
-                else:
-                    column_names = ['ID', 'Имя', 'Фамилия', 'Логин', 'Платформа']
-                    df = pd.DataFrame(list_participants, columns=column_names)
+                file_name = f'{db.name_table(table_id)}.xlsx'
+                df.to_excel(file_name, index=False)
 
-                    df.insert(0, '#', range(1, len(df) + 1))
+                # Отправляем таблицу пользователю
+                with open(file_name, 'rb') as file:
+                    bot.send_document(message.chat.id, file)
 
-                    file_name = f'{db.name_table(table_id)}.xlsx'
-                    df.to_excel(file_name, index=False)
-
-                    # Отправляем таблицу пользователю
-                    with open(file_name, 'rb') as file:
-                        bot.send_document(message.chat.id, file)
-
-                    # Удаляем файл
-                    os.remove(file_name)
+                # Удаляем файл
+                os.remove(file_name)
 
     except Exception as error:
         print("Ошибка при работе с функцией excel_table\n", error)
@@ -586,7 +549,7 @@ def handle_setting(call):
             return
 
         # Вызываем show_settings напрямую, передавая table_id
-        show_settings(call, table_id) # <--- Важно!
+        show_settings(call, table_id)  # <--- Важно!
 
     except Exception as error:
         print(f"Ошибка в handle_setting: {error}")
@@ -619,47 +582,33 @@ def back_to_table(call):
 # Обработчик всех сообщений, начинающихся с "/" и не соответствующих известным командам.
 
 
-@bot.message_handler(commands=['random'])
-def random_one_user_table(message):
+def random_one_user_table(message, table_id):
     """
     Обработчик команды /random для отображения случайного участника таблицы.
     """
     try:
-        table_id = int(str(message.text)[8:])  # Изменено на [8:], так как команда /random
-    except (ValueError, IndexError):
-        bot.reply_to(message, "Неверный формат команды. Используйте /random <id_таблицы>")
-        return
-
-    try:
-        user_id = message.from_user.id
-        if not db.exist_user(user_id):
-            bot.reply_to(message, "Вас нет в базе данных")
+        if not db.exists_table(table_id):
+            bot.reply_to(message, "Нет такой таблицы")
         else:
-            if not db.exists_table(table_id):
-                bot.reply_to(message, "Нет такой таблицы")
+            list_participants = db.select_rando_user(table_id)
+
+            if list_participants is None:
+                bot.reply_to(message, "В таблице нет участников.")
             else:
-                if not db.is_user_owner(table_id, user_id):
-                    bot.reply_to(message, "Вы не можете просмотреть эту таблицу.\nНедостаточно прав!")
-                    return
+                user_id, user_name, user_surname, username, platform_name = list_participants  # Распаковка кортежа
 
-                list_participants = db.select_rando_user(table_id)
-
-                if list_participants is None:
-                    bot.reply_to(message, "В таблице нет участников.")
-                else:
-                    user_id, user_name, user_surname, username, platform_name = list_participants  # Распаковка кортежа
-
-                    # Форматирование строки с данными
-                    output_string = (
-                        f"Таблица: {db.name_table(id_table=table_id)}\n"
-                        f"Участник:\n"
-                        f"ID: {user_id}\n"
-                        f"Имя: {user_name}\n"
-                        f"Фамилия: {user_surname if user_surname else '-'}\n"  # Проверка на None
-                        f"Логин: {username if username else '-'}\n"  # Проверка на None
-                        f"Платформа: {platform_name}"
-                    )
-                    bot.reply_to(message, output_string)
+                # Данные о рандомном участнике
+                output_string = (
+                    f"📊 *Таблица:* {db.name_table(id_table=table_id)}\n"
+                    f"👤 *Участник:*\n"
+                    f"• ID: `{user_id}`\n"
+                    f"• Имя: `{user_name}`\n"
+                    f"• Фамилия: `{user_surname if user_surname else '-'}`\n"  # Проверка на None
+                    f"• Логин: `{username if username else '-'}`\n"  # Проверка на None
+                    f"• Платформа: `{platform_name}`"
+                )
+                # Отправляем сообщение с форматированием Markdown
+                bot.reply_to(message, output_string, parse_mode="Markdown")
 
     except Exception as error:
         print(f"Ошибка в random_one_user_table: {error}")
