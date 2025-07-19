@@ -7,11 +7,11 @@ import os
 from data_base import PostgresConnection
 
 # вводим токен бота
-bot = telebot.TeleBot("TELEGRAM_BOT_TOKEN")
+bot = telebot.TeleBot("Api_Key")
 
 db = PostgresConnection(
-    database="telebot",
-    password="PENROG21"
+    database="database",
+    password="password"
 )
 db.connect()
 user_data = {}
